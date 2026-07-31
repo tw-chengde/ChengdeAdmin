@@ -3,6 +3,13 @@
   "name": "chengdeadmin",
   "main": "./worker/index.ts",
   "compatibility_date": "2024-11-18",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "AUTH_TRUST_HOST": "true",
+    "AUTH_URL": "https://admin.tw-chengde.com"
+  },
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist/client"
