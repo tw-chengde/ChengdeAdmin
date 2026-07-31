@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+  --font-display: Poppins, "Noto Sans TC", Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --color-primary: #eb714a;
+  --color-primary-light: #f09273;
+  --color-primary-dark: #d65730;
+  --color-sidebar: #1c1917;
+  --color-background: #fafaf9;
+  --color-surface: #ffffff;
+  --color-text: #1c1917;
+  --color-text-secondary: #78716c;
+  --color-border: #eee5e1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(235, 113, 74, 0.18);
+}
