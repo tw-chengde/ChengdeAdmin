@@ -1,6 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import type { D1Database } from "@cloudflare/workers-types";
 
 interface Fetcher {
   fetch(request: Request | string): Promise<Response>;
@@ -8,6 +9,9 @@ interface Fetcher {
 
 interface Env {
   ASSETS: Fetcher;
+  // Cloudflare D1 binding (see wrangler.json d1_databases). Used by the
+  // product management page's server actions via app/lib/db.ts.
+  DB: D1Database;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -38,6 +42,12 @@ const worker = {
         }
       }
     }
+
+    // Non-string bindings (e.g. the D1 database) can't live in process.env, so
+    // expose the whole env on globalThis for server components/actions to read
+    // via app/lib/db.ts. Within a Workers isolate `env` is identical across
+    // requests, so this shared reference is safe.
+    (globalThis as { __CLOUDFLARE_ENV__?: Env }).__CLOUDFLARE_ENV__ = env;
 
     const url = new URL(request.url);
 

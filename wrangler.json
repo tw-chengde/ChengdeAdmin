@@ -1,32 +1,40 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "chengdeadmin",
-  "main": "./worker/index.ts",
-  "compatibility_date": "2024-11-18",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "vars": {
-    "AUTH_TRUST_HOST": "true",
-    "AUTH_URL": "https://admin.tw-chengde.com"
-  },
-  "assets": {
-    "binding": "ASSETS",
-    "directory": "./dist/client"
-  },
-  "observability": {
-    "enabled": false,
-    "head_sampling_rate": 1,
-    "logs": {
-      "enabled": true,
-      "head_sampling_rate": 1,
-      "persist": true,
-      "invocation_logs": true
-    },
-    "traces": {
-      "enabled": false,
-      "persist": true,
-      "head_sampling_rate": 1
-    }
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "chengdeadmin",
+	"main": "./worker/index.ts",
+	"compatibility_date": "2024-11-18",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"vars": {
+		"AUTH_TRUST_HOST": "true",
+		"AUTH_URL": "https://admin.tw-chengde.com"
+	},
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./dist/client"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "chengde-admin-db",
+			"database_id": "f83cd46d-4421-4cfb-9e34-88abc01c7c1f",
+			"migrations_dir": "migrations"
+		}
+	],
+	"observability": {
+		"enabled": false,
+		"head_sampling_rate": 1,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": true,
+			"invocation_logs": true
+		},
+		"traces": {
+			"enabled": false,
+			"persist": true,
+			"head_sampling_rate": 1
+		}
+	}
 }

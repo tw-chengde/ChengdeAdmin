@@ -49,6 +49,7 @@ import { signOutFromDashboard } from "@/app/actions";
 import { appTheme } from "@/app/theme";
 import OrderMergeView from "./order-merge-view";
 import OrdersView from "./orders-view";
+import ProductsView from "./products-view";
 
 const drawerWidth = 252;
 const collapsedDrawerWidth = 72;
@@ -57,7 +58,7 @@ const navItems = [
   ["訂單管理", LocalMallRounded],
   ["併單管理", MergeTypeRounded],
   ["客戶管理", PeopleAltRounded],
-  ["商品庫存", Inventory2Rounded],
+  ["商品管理", Inventory2Rounded],
   ["分析報表", AssessmentRounded],
 ] as const;
 const metrics = [
@@ -173,6 +174,8 @@ export default function DashboardClient({ user }: { user: { name: string; email:
               <OrderMergeView />
             ) : activePage === "訂單管理" ? (
               <OrdersView />
+            ) : activePage === "商品管理" ? (
+              <ProductsView />
             ) : activePage === "總覽" ? (
               <>
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ justifyContent: "space-between", alignItems: { sm: "center" }, mb: 3.5 }}>
