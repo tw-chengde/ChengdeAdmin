@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import test from "node:test";
+import { resolve } from "node:path";
+import { test } from "vitest";
+
+// jsdom 環境下 import.meta.url 不是 file:// URL，改以專案根目錄解析路徑。
+const fromRoot = (path) => resolve(process.cwd(), path);
+const read = (path) => readFile(fromRoot(path), "utf8");
 
 test("includes Google authentication and a protected dashboard", async () => {
   const [auth, dashboard, home, login] = await Promise.all([
-    readFile(new URL("../auth.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/login-screen.tsx", import.meta.url), "utf8"),
+    read("auth.ts"),
+    read("app/dashboard/page.tsx"),
+    read("app/page.tsx"),
+    read("app/login-screen.tsx"),
   ]);
 
   assert.match(auth, /next-auth\/providers\/google/);
@@ -19,7 +24,7 @@ test("includes Google authentication and a protected dashboard", async () => {
 });
 
 test("marks the internal dashboard as private", async () => {
-  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const layout = await read("app/layout.tsx");
   assert.match(layout, /誠得後台管理系統/);
   assert.match(layout, /index: false/);
   assert.match(layout, /follow: false/);

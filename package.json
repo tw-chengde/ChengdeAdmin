@@ -9,13 +9,15 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/project.test.mjs",
+    "test": "vitest run",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:create": "wrangler d1 create chengde-admin-db",
     "db:migrations:new": "wrangler d1 migrations create chengde-admin-db",
     "db:migrate:local": "wrangler d1 migrations apply chengde-admin-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply chengde-admin-db --remote",
-    "db:migrations:list": "wrangler d1 migrations list chengde-admin-db --remote"
+    "db:migrations:list": "wrangler d1 migrations list chengde-admin-db --remote",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -30,6 +32,10 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "^4.20241127.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
@@ -37,10 +43,12 @@
     "@vitejs/plugin-rsc": "0.5.26",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
+    "jsdom": "^29.1.1",
     "react-server-dom-webpack": "19.2.6",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
     "vite": "8.0.13",
+    "vitest": "^4.1.10",
     "wrangler": "4.92.0"
   },
   "type": "module"
