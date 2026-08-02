@@ -26,7 +26,8 @@ export function useOrdersViewModel(initialOrders: OrderItem[]) {
       if (statusTab !== "ALL" && order.status !== statusTab) return false;
 
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        // 需與上面的判斷一致取 trim 後的值，否則貼上帶空白的訂單編號會搜不到。
+        const q = searchQuery.trim().toLowerCase();
         const matchNo = order.orderNo.toLowerCase().includes(q);
         const matchChannelNo = order.channelOrderNo.toLowerCase().includes(q);
         const matchName = order.customerName.toLowerCase().includes(q);
