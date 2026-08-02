@@ -2,6 +2,8 @@
 
 import {
   AddRounded,
+  DeleteOutlineRounded,
+  EditRounded,
   Inventory2Rounded,
   RefreshRounded,
 } from "@mui/icons-material";
@@ -11,6 +13,11 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   Paper,
   Stack,
   Table,
@@ -20,12 +27,25 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { useEffect, useState, useTransition } from "react";
-import { createProduct, listProducts, type Product } from "./products-actions";
+import type { Product } from "@/app/types/product";
+import { createProduct, deleteProduct, listProducts, updateProduct } from "./products-actions";
 
 const emptyForm = { code: "", name: "", stock: "" };
+
+/**
+ * 「操作」欄固定在表格右側，水平捲動時不會被推出畫面。
+ * 背景需為不透明色，否則捲動時底下的儲存格會透出來。
+ */
+const stickyActionCell = {
+  position: "sticky" as const,
+  right: 0,
+  zIndex: 2,
+  borderLeft: "1px solid #eaecf0",
+};
 
 export default function ProductsView() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -35,6 +55,17 @@ export default function ProductsView() {
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isSubmitting, startSubmit] = useTransition();
+
+  // 修改商品對話框。editing 為目前正在編輯的商品，null 代表對話框關閉。
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [editForm, setEditForm] = useState(emptyForm);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSaving, startSave] = useTransition();
+
+  // 刪除確認對話框。deleting 為待刪除的商品，null 代表對話框關閉。
+  const [deleting, setDeleting] = useState<Product | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, startDelete] = useTransition();
 
   const loadProducts = () => {
     setLoading(true);
@@ -80,6 +111,62 @@ export default function ProductsView() {
         loadProducts();
       } else {
         setFormError(result.error ?? "新增失敗");
+      }
+    });
+  };
+
+  const openEdit = (product: Product) => {
+    setEditing(product);
+    setEditForm({ code: product.code, name: product.name, stock: String(product.stock) });
+    setEditError(null);
+  };
+
+  const closeEdit = () => {
+    if (isSaving) return;
+    setEditing(null);
+    setEditError(null);
+  };
+
+  const handleUpdate = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editing) return;
+    setEditError(null);
+    setSuccess(null);
+    startSave(async () => {
+      const result = await updateProduct({
+        id: editing.id,
+        code: editForm.code,
+        name: editForm.name,
+        stock: Number(editForm.stock === "" ? 0 : editForm.stock),
+      });
+      if (result.ok) {
+        setEditing(null);
+        setSuccess("商品已更新");
+        loadProducts();
+      } else {
+        setEditError(result.error ?? "修改失敗");
+      }
+    });
+  };
+
+  const closeDelete = () => {
+    if (isDeleting) return;
+    setDeleting(null);
+    setDeleteError(null);
+  };
+
+  const handleDelete = () => {
+    if (!deleting) return;
+    setDeleteError(null);
+    setSuccess(null);
+    startDelete(async () => {
+      const result = await deleteProduct(deleting.id);
+      if (result.ok) {
+        setDeleting(null);
+        setSuccess(`商品「${deleting.name}」已刪除`);
+        loadProducts();
+      } else {
+        setDeleteError(result.error ?? "刪除失敗");
       }
     });
   };
@@ -206,18 +293,24 @@ export default function ProductsView() {
                 <TableCell sx={{ color: "#667085", fontSize: 12, fontWeight: 750 }}>商品名稱</TableCell>
                 <TableCell sx={{ color: "#667085", fontSize: 12, fontWeight: 750 }} align="right">庫存</TableCell>
                 <TableCell sx={{ color: "#667085", fontSize: 12, fontWeight: 750 }}>建立時間</TableCell>
+                <TableCell
+                  align="right"
+                  sx={{ ...stickyActionCell, color: "#667085", fontSize: 12, fontWeight: 750, bgcolor: "#f9fafb" }}
+                >
+                  操作
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={22} sx={{ color: "#d65730" }} />
                   </TableCell>
                 </TableRow>
               ) : products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                     <Typography color="text.secondary" sx={{ fontSize: 14 }}>
                       尚無商品，請使用上方表單新增。
                     </Typography>
@@ -225,7 +318,15 @@ export default function ProductsView() {
                 </TableRow>
               ) : (
                 products.map((product) => (
-                  <TableRow key={product.id} hover sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
+                  <TableRow
+                    key={product.id}
+                    hover
+                    sx={{
+                      "&:last-child td, &:last-child th": { borderBottom: 0 },
+                      // hover 的底色套在 row 上，固定欄有自己的不透明背景，需另外跟著變色
+                      "&:hover .product-action-cell": { bgcolor: "#f9fafb" },
+                    }}
+                  >
                     <TableCell>
                       <Typography sx={{ fontSize: 13.5, fontWeight: 750, color: "#1e293b", fontFamily: "monospace" }}>
                         {product.code}
@@ -249,6 +350,35 @@ export default function ProductsView() {
                     <TableCell>
                       <Typography sx={{ fontSize: 12.5, color: "#64748b" }}>{product.created_at}</Typography>
                     </TableCell>
+                    <TableCell
+                      align="right"
+                      className="product-action-cell"
+                      sx={{ ...stickyActionCell, bgcolor: "#ffffff" }}
+                    >
+                      <Stack direction="row" spacing={0.5} sx={{ justifyContent: "flex-end" }}>
+                        <Tooltip title="修改商品">
+                          <IconButton
+                            size="small"
+                            onClick={() => openEdit(product)}
+                            sx={{ color: "#667085", "&:hover": { color: "#d65730", bgcolor: "#fef2ec" } }}
+                          >
+                            <EditRounded fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="刪除商品">
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setDeleting(product);
+                              setDeleteError(null);
+                            }}
+                            sx={{ color: "#667085", "&:hover": { color: "#b42318", bgcolor: "#fef3f2" } }}
+                          >
+                            <DeleteOutlineRounded fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -256,6 +386,101 @@ export default function ProductsView() {
           </Table>
         </TableContainer>
       </Paper>
+
+      {/* 修改商品對話框 */}
+      <Dialog
+        open={Boolean(editing)}
+        onClose={closeEdit}
+        maxWidth="sm"
+        fullWidth
+        slotProps={{ paper: { component: "form", onSubmit: handleUpdate, sx: { borderRadius: 3 } } }}
+      >
+        <DialogTitle sx={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>修改商品</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2.5} sx={{ pt: 1 }}>
+            <TextField
+              label="商品代號"
+              value={editForm.code}
+              onChange={(e) => setEditForm((f) => ({ ...f, code: e.target.value }))}
+              required
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="商品名稱"
+              value={editForm.name}
+              onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+              required
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="庫存"
+              type="number"
+              value={editForm.stock}
+              onChange={(e) => setEditForm((f) => ({ ...f, stock: e.target.value }))}
+              size="small"
+              slotProps={{ htmlInput: { min: 0, step: 1 } }}
+              sx={{ width: { xs: "100%", sm: 180 } }}
+            />
+            {editError && <Alert severity="error">{editError}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button
+            onClick={closeEdit}
+            disabled={isSaving}
+            sx={{ color: "#344054", fontWeight: 700 }}
+          >
+            取消
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={isSaving}
+            startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : null}
+            sx={{ background: "linear-gradient(145deg, #d65730, #eb714a)", fontWeight: 700, px: 2.6 }}
+          >
+            儲存變更
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 刪除確認對話框 */}
+      <Dialog
+        open={Boolean(deleting)}
+        onClose={closeDelete}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{ paper: { sx: { borderRadius: 3 } } }}
+      >
+        <DialogTitle sx={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>刪除商品</DialogTitle>
+        <DialogContent dividers>
+          <Typography sx={{ fontSize: 14, color: "#344054" }}>
+            確定要刪除商品「{deleting?.name}」（{deleting?.code}）嗎？此動作無法復原。
+          </Typography>
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {deleteError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={closeDelete} disabled={isDeleting} sx={{ color: "#344054", fontWeight: 700 }}>
+            取消
+          </Button>
+          <Button
+            onClick={handleDelete}
+            variant="contained"
+            color="error"
+            disabled={isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={16} color="inherit" /> : <DeleteOutlineRounded />}
+            sx={{ fontWeight: 700, px: 2.6 }}
+          >
+            確定刪除
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

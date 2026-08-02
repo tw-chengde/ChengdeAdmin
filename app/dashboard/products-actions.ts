@@ -1,25 +1,18 @@
 "use server";
 
 import { getDb } from "@/app/lib/db";
-
-export interface Product {
-  id: number;
-  code: string;
-  name: string;
-  stock: number;
-  created_at: string;
-}
-
-export interface CreateProductInput {
-  code: string;
-  name: string;
-  stock: number;
-}
-
-export interface CreateProductResult {
-  ok: boolean;
-  error?: string;
-}
+import type {
+  CreateProductInput,
+  Product,
+  ProductMutationResult,
+  UpdateProductInput,
+} from "@/app/types/product";
+import {
+  isValidProductId,
+  mapProductDbError,
+  notFoundMessage,
+  validateProductInput,
+} from "@/app/utils/products";
 
 /** 讀取所有商品，最新建立的排在前面。 */
 export async function listProducts(): Promise<Product[]> {
@@ -31,14 +24,10 @@ export async function listProducts(): Promise<Product[]> {
 }
 
 /** 新增一筆商品。商品代號重複時回傳友善錯誤訊息。 */
-export async function createProduct(input: CreateProductInput): Promise<CreateProductResult> {
-  const code = input.code?.trim();
-  const name = input.name?.trim();
-  const stock = Number(input.stock);
-
-  if (!code) return { ok: false, error: "請輸入商品代號" };
-  if (!name) return { ok: false, error: "請輸入商品名稱" };
-  if (!Number.isInteger(stock) || stock < 0) return { ok: false, error: "庫存必須為 0 或正整數" };
+export async function createProduct(input: CreateProductInput): Promise<ProductMutationResult> {
+  const valid = validateProductInput(input);
+  if (!valid.ok) return valid;
+  const { code, name, stock } = valid;
 
   try {
     const db = getDb();
@@ -49,9 +38,43 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (/UNIQUE/i.test(message)) {
-      return { ok: false, error: `商品代號「${code}」已存在` };
-    }
-    return { ok: false, error: "新增失敗，請稍後再試" };
+    return { ok: false, error: mapProductDbError(message, "create", code) };
+  }
+}
+
+/** 修改既有商品。找不到該筆或商品代號與其他商品重複時回傳友善錯誤訊息。 */
+export async function updateProduct(input: UpdateProductInput): Promise<ProductMutationResult> {
+  if (!isValidProductId(input.id)) return { ok: false, error: "找不到要修改的商品" };
+
+  const valid = validateProductInput(input);
+  if (!valid.ok) return valid;
+  const { code, name, stock } = valid;
+
+  try {
+    const db = getDb();
+    const result = await db
+      .prepare("UPDATE products SET code = ?, name = ?, stock = ? WHERE id = ?")
+      .bind(code, name, stock, Number(input.id))
+      .run();
+    if (result.meta?.changes === 0) return { ok: false, error: notFoundMessage("update") };
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: mapProductDbError(message, "update", code) };
+  }
+}
+
+/** 刪除商品。找不到該筆時回傳友善錯誤訊息。 */
+export async function deleteProduct(id: number): Promise<ProductMutationResult> {
+  if (!isValidProductId(id)) return { ok: false, error: "找不到要刪除的商品" };
+
+  try {
+    const db = getDb();
+    const result = await db.prepare("DELETE FROM products WHERE id = ?").bind(Number(id)).run();
+    if (result.meta?.changes === 0) return { ok: false, error: notFoundMessage("delete") };
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: mapProductDbError(message, "delete") };
   }
 }
