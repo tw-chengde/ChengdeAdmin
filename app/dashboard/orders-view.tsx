@@ -187,20 +187,16 @@ export default function OrdersView() {
             label={
               <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                 <Box
+                  component="img"
+                  src="/images/momo.png"
+                  alt="MOMO"
                   sx={{
                     width: 22,
                     height: 22,
-                    borderRadius: 1,
-                    bgcolor: "#ec008c",
-                    color: "white",
-                    fontSize: 10,
-                    fontWeight: 900,
-                    display: "grid",
-                    placeItems: "center",
+                    borderRadius: "4px",
+                    objectFit: "contain",
                   }}
-                >
-                  mo
-                </Box>
+                />
                 <Typography sx={{ fontWeight: 750, fontSize: 14 }}>MOMO 購物網</Typography>
                 <Chip
                   label={mockOrders.filter((o) => o.channelCode === "MOMO_MAIN").length}
@@ -216,20 +212,16 @@ export default function OrdersView() {
             label={
               <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                 <Box
+                  component="img"
+                  src="/images/mo-store.jpg"
+                  alt="Mo 店+"
                   sx={{
                     width: 22,
                     height: 22,
-                    borderRadius: 1,
-                    bgcolor: "#ff6b00",
-                    color: "white",
-                    fontSize: 10,
-                    fontWeight: 900,
-                    display: "grid",
-                    placeItems: "center",
+                    borderRadius: "4px",
+                    objectFit: "cover",
                   }}
-                >
-                  店+
-                </Box>
+                />
                 <Typography sx={{ fontWeight: 750, fontSize: 14 }}>Mo 店+</Typography>
                 <Chip
                   label={mockOrders.filter((o) => o.channelCode === "MO_STORE_PLUS").length}
