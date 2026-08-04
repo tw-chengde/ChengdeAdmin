@@ -2,13 +2,12 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "chengdeadmin",
 	"main": "./worker/index.ts",
-	"compatibility_date": "2025-05-05",
+	"compatibility_date": "2026-07-30",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
 	"vars": {
-		"AUTH_TRUST_HOST": "true",
-		"AUTH_URL": "https://admin.tw-chengde.com"
+		"BETTER_AUTH_URL": "https://admin.tw-chengde.com"
 	},
 	"assets": {
 		"binding": "ASSETS",

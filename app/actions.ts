@@ -1,11 +1,14 @@
 "use server";
 
-import { signIn, signOut } from "@/auth";
-
-export async function signInWithGoogle() {
-  await signIn("google", { redirectTo: "/dashboard" });
-}
+import { getAuth } from "@/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 export async function signOutFromDashboard() {
-  await signOut({ redirectTo: "/" });
+  // The `nextCookies()` plugin in auth.ts is what forwards the resulting
+  // `Set-Cookie` to the browser — without it the session cookie survives.
+  await getAuth().api.signOut({
+    headers: await headers(),
+  });
+  redirect("/");
 }

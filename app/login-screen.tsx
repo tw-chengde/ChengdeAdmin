@@ -1,7 +1,7 @@
 "use client";
 
-import { Box, Button, CssBaseline, Paper, Stack, ThemeProvider, Typography } from "@mui/material";
-import { signInWithGoogle } from "@/app/actions";
+import { Alert, Box, Button, CircularProgress, CssBaseline, Paper, Stack, ThemeProvider, Typography } from "@mui/material";
+import { useGoogleSignIn } from "@/app/hooks/useGoogleSignIn";
 import { appTheme } from "@/app/theme";
 
 function GoogleIcon() {
@@ -37,6 +37,8 @@ function LockIcon() {
 }
 
 export default function LoginScreen() {
+  const { error, pending, signIn } = useGoogleSignIn();
+
   return (
     <ThemeProvider theme={appTheme}>
       <CssBaseline />
@@ -135,14 +137,21 @@ export default function LoginScreen() {
               </Typography>
             </Box>
 
-            {/* Login Action Form */}
-            <Box component="form" action={signInWithGoogle} sx={{ width: "100%" }}>
+            {/* Login Action */}
+            <Box sx={{ width: "100%" }}>
+              {error && (
+                <Alert severity="error" sx={{ mb: 2, borderRadius: 2.5, fontSize: 13.5 }}>
+                  {error}
+                </Alert>
+              )}
               <Button
-                type="submit"
+                type="button"
+                onClick={signIn}
+                disabled={pending}
                 fullWidth
                 variant="outlined"
                 size="large"
-                startIcon={<GoogleIcon />}
+                startIcon={pending ? <CircularProgress size={18} color="inherit" /> : <GoogleIcon />}
                 sx={{
                   minHeight: 52,
                   borderRadius: 2.5,
@@ -162,9 +171,14 @@ export default function LoginScreen() {
                   "&:active": {
                     transform: "translateY(0)",
                   },
+                  "&.Mui-disabled": {
+                    bgcolor: "#ffffff",
+                    borderColor: "#f3d5cb",
+                    color: "#a8a29e",
+                  },
                 }}
               >
-                使用 Google 帳號登入
+                {pending ? "前往 Google 登入…" : "使用 Google 帳號登入"}
               </Button>
             </Box>
 
