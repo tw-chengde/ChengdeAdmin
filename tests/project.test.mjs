@@ -30,7 +30,7 @@ test("includes Google authentication and a protected dashboard", async () => {
 test("persists auth state in D1 and forwards cookies from server actions", async () => {
   const auth = await read("auth.ts");
 
-  assert.match(auth, /database:\s*getDb\(\)/);
+  assert.match(auth, /database:\s*getD1Database\(\)/);
   assert.match(auth, /nextCookies\(\)/);
 });
 

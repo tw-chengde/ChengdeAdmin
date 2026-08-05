@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { headers } from "next/headers";
-import { getDb } from "@/app/lib/db";
+import { getD1Database } from "@/app/lib/db";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -19,7 +19,7 @@ function createAuth() {
     // Better Auth detects the raw D1 binding (`batch`/`exec`/`prepare`) and
     // wires up its own D1 dialect — no extra adapter package needed. Tables
     // live in migrations/0002_create_better_auth_tables.sql.
-    database: getDb(),
+    database: getD1Database(),
     socialProviders: {
       google: {
         clientId: requireEnv("AUTH_GOOGLE_ID"),

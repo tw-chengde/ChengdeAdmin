@@ -1,6 +1,8 @@
 "use server";
 
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/app/lib/db";
+import { products } from "@/app/lib/schema";
 import type {
   CreateProductInput,
   Product,
@@ -17,10 +19,16 @@ import {
 /** 讀取所有商品，最新建立的排在前面。 */
 export async function listProducts(): Promise<Product[]> {
   const db = getDb();
-  const { results } = await db
-    .prepare("SELECT id, code, name, stock, created_at FROM products ORDER BY created_at DESC, id DESC")
-    .all<Product>();
-  return results ?? [];
+  return db
+    .select({
+      id: products.id,
+      code: products.code,
+      name: products.name,
+      stock: products.stock,
+      created_at: products.createdAt,
+    })
+    .from(products)
+    .orderBy(desc(products.createdAt), desc(products.id));
 }
 
 /** 新增一筆商品。商品代號重複時回傳友善錯誤訊息。 */
@@ -31,10 +39,7 @@ export async function createProduct(input: CreateProductInput): Promise<ProductM
 
   try {
     const db = getDb();
-    await db
-      .prepare("INSERT INTO products (code, name, stock) VALUES (?, ?, ?)")
-      .bind(code, name, stock)
-      .run();
+    await db.insert(products).values({ code, name, stock }).run();
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -53,8 +58,9 @@ export async function updateProduct(input: UpdateProductInput): Promise<ProductM
   try {
     const db = getDb();
     const result = await db
-      .prepare("UPDATE products SET code = ?, name = ?, stock = ? WHERE id = ?")
-      .bind(code, name, stock, Number(input.id))
+      .update(products)
+      .set({ code, name, stock, updatedAt: sql`datetime('now')` })
+      .where(eq(products.id, Number(input.id)))
       .run();
     if (result.meta?.changes === 0) return { ok: false, error: notFoundMessage("update") };
     return { ok: true };
@@ -70,7 +76,7 @@ export async function deleteProduct(id: number): Promise<ProductMutationResult> 
 
   try {
     const db = getDb();
-    const result = await db.prepare("DELETE FROM products WHERE id = ?").bind(Number(id)).run();
+    const result = await db.delete(products).where(eq(products.id, Number(id))).run();
     if (result.meta?.changes === 0) return { ok: false, error: notFoundMessage("delete") };
     return { ok: true };
   } catch (err) {

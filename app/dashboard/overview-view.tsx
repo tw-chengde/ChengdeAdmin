@@ -3,12 +3,7 @@
 import ConstructionRounded from "@mui/icons-material/ConstructionRounded";
 import { Box, Paper, Stack, Typography } from "@mui/material";
 
-type OverviewViewProps = {
-  user: { name: string; email: string; image?: string };
-  onViewAllOrders: () => void;
-};
-
-export default function OverviewView(_props: OverviewViewProps) {
+export default function OverviewView() {
   return (
     <Paper
       elevation={0}
