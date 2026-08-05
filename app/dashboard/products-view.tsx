@@ -1,12 +1,10 @@
 "use client";
 
-import {
-  AddRounded,
-  DeleteOutlineRounded,
-  EditRounded,
-  Inventory2Rounded,
-  RefreshRounded,
-} from "@mui/icons-material";
+import AddRounded from "@mui/icons-material/AddRounded";
+import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
+import EditRounded from "@mui/icons-material/EditRounded";
+import Inventory2Rounded from "@mui/icons-material/Inventory2Rounded";
+import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import {
   Alert,
   Box,

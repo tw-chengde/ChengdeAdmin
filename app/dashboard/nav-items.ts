@@ -1,11 +1,9 @@
-import {
-  AssessmentRounded,
-  DashboardRounded,
-  Inventory2Rounded,
-  LocalMallRounded,
-  MergeTypeRounded,
-  PeopleAltRounded,
-} from "@mui/icons-material";
+import AssessmentRounded from "@mui/icons-material/AssessmentRounded";
+import DashboardRounded from "@mui/icons-material/DashboardRounded";
+import Inventory2Rounded from "@mui/icons-material/Inventory2Rounded";
+import LocalMallRounded from "@mui/icons-material/LocalMallRounded";
+import MergeTypeRounded from "@mui/icons-material/MergeTypeRounded";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import type { NavItem } from "@/app/types/dashboard";
 
 export const navItems: NavItem[] = [

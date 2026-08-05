@@ -14,8 +14,21 @@ export default defineConfig(() => {
   process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
 
   return {
+    server: {
+      watch: {
+        ignored: ["**/.wrangler/**", "**/.next/**"],
+      },
+    },
     optimizeDeps: {
-      include: ["better-auth", "better-auth/react", "better-auth/next-js"],
+      include: [
+        "better-auth",
+        "better-auth/react",
+        "better-auth/next-js",
+        "@mui/material",
+        "@mui/icons-material",
+        "@emotion/react",
+        "@emotion/styled",
+      ],
     },
     plugins: [
       vinext(),

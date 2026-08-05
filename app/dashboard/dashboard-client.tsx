@@ -1,6 +1,6 @@
 "use client";
 
-import { MenuRounded } from "@mui/icons-material";
+import MenuRounded from "@mui/icons-material/MenuRounded";
 import { Box, CssBaseline, IconButton, Paper, Stack, ThemeProvider, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { appTheme } from "@/app/theme";

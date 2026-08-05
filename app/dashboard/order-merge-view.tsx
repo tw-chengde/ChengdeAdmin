@@ -1,17 +1,15 @@
 "use client";
 
-import {
-  CancelRounded,
-  CheckCircleRounded,
-  EditRounded,
-  LocalShippingRounded,
-  MergeTypeRounded,
-  RefreshRounded,
-  SaveRounded,
-  SearchRounded,
-  StorefrontRounded,
-  TuneRounded,
-} from "@mui/icons-material";
+import CancelRounded from "@mui/icons-material/CancelRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import EditRounded from "@mui/icons-material/EditRounded";
+import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
+import MergeTypeRounded from "@mui/icons-material/MergeTypeRounded";
+import RefreshRounded from "@mui/icons-material/RefreshRounded";
+import SaveRounded from "@mui/icons-material/SaveRounded";
+import SearchRounded from "@mui/icons-material/SearchRounded";
+import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
+import TuneRounded from "@mui/icons-material/TuneRounded";
 import {
   Alert,
   Avatar,

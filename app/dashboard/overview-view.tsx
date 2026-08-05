@@ -1,6 +1,6 @@
 "use client";
 
-import { ConstructionRounded } from "@mui/icons-material";
+import ConstructionRounded from "@mui/icons-material/ConstructionRounded";
 import { Box, Paper, Stack, Typography } from "@mui/material";
 
 type OverviewViewProps = {

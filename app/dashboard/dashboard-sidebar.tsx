@@ -1,6 +1,8 @@
 "use client";
 
-import { ChevronRightRounded, LogoutRounded, MenuOpenRounded } from "@mui/icons-material";
+import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
+import LogoutRounded from "@mui/icons-material/LogoutRounded";
+import MenuOpenRounded from "@mui/icons-material/MenuOpenRounded";
 import {
   Avatar,
   Box,

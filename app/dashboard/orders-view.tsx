@@ -1,15 +1,13 @@
 "use client";
 
-import {
-  CheckCircleOutlineRounded,
-  CheckCircleRounded,
-  ContentCopyRounded,
-  DownloadRounded,
-  PrintRounded,
-  SearchRounded,
-  StorefrontRounded,
-  SyncRounded,
-} from "@mui/icons-material";
+import CheckCircleOutlineRounded from "@mui/icons-material/CheckCircleOutlineRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import ContentCopyRounded from "@mui/icons-material/ContentCopyRounded";
+import DownloadRounded from "@mui/icons-material/DownloadRounded";
+import PrintRounded from "@mui/icons-material/PrintRounded";
+import SearchRounded from "@mui/icons-material/SearchRounded";
+import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
+import SyncRounded from "@mui/icons-material/SyncRounded";
 import {
   Avatar,
   Box,
