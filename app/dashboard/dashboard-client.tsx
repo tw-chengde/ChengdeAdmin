@@ -34,7 +34,7 @@ export default function DashboardClient({ user }: { user: { name: string; email:
   } = useDashboardViewModel();
 
   const pageContent: Record<PageId, ReactNode> = {
-    overview: <OverviewView user={user} onViewAllOrders={() => navigateTo("orders")} />,
+    overview: <OverviewView />,
     orders: <OrdersView />,
     merge: <OrderMergeView />,
     products: <ProductsView />,

@@ -64,10 +64,10 @@ through Auth.js.
 | `npm run typecheck` | Check TypeScript types without emitting files |
 | `npm run lint` | Run ESLint |
 | `npm run db:create` | Create the Cloudflare D1 database |
-| `npm run db:migrations:new -- <name>` | Create a new D1 migration |
 | `npm run db:migrate:local` | Apply migrations to the local D1 database |
 | `npm run db:migrate:remote` | Apply migrations to the remote D1 database |
 | `npm run db:migrations:list` | List migrations applied to the remote database |
+| `npm run db:generate -- --name=<name>` | Generate a Drizzle SQL draft for a schema change |
 
 ## Project structure
 
@@ -86,16 +86,35 @@ wrangler.json  Cloudflare Worker, assets, and D1 bindings
 
 ## Database changes
 
-Create schema changes as numbered migration files rather than editing an already
-applied migration:
+`app/lib/schema.ts` is the single source of truth for the D1 schema, including
+the Better Auth tables. Drizzle Kit writes generated SQL and its metadata
+directly to `migrations/`.
+
+### Initial migration
+
+`migrations/0000_dapper_layla_miller.sql` is the first migration and creates
+the complete schema.
+
+After deleting and recreating the remote D1 database, apply it with Wrangler:
 
 ```bash
-npm run db:migrations:new -- describe_change
 npm run db:migrate:local
+npm run db:migrate:remote
 ```
 
-After verifying the change locally, apply it to the configured remote database
-with `npm run db:migrate:remote`.
+### Routine schema changes
+
+1. Update `app/lib/schema.ts`.
+2. Run `npm run db:generate -- --name=<name>`.
+3. Review the generated SQL in `migrations/`.
+4. Apply it locally, then remotely:
+
+```bash
+npm run db:migrate:local
+npm run db:migrate:remote
+```
+
+Commit each generated SQL migration together with its `migrations/meta/` changes.
 
 ## Learn more
 

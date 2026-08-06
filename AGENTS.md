@@ -6,7 +6,7 @@ Application code lives in `app/` and follows Next.js App Router conventions.
 Dashboard views are in
 `app/dashboard/`; reusable hooks, domain types, utilities, and server integrations
 belong in `app/hooks/`, `app/types/`, `app/utils/`, and `app/lib/` respectively.
-Static files go in `public/`, Cloudflare D1 migrations in `migrations/`, and Worker
+Static files go in `public/`, Drizzle-generated D1 migrations and metadata in `migrations/`, and Worker
 bootstrap code in `worker/`. Tests live in `tests/`, with shared fixtures under
 `tests/mocks/`.
 
@@ -20,10 +20,22 @@ bootstrap code in `worker/`. Tests live in `tests/`, with shared fixtures under
 - `npm run typecheck`: validate TypeScript without emitting files.
 - `npm run lint`: run ESLint across the repository.
 - `npm run db:migrate:local`: apply D1 migrations to the local database.
+- `npm run db:generate -- --name=<name>`: generate a Drizzle migration from schema changes.
 
 After adding or modifying functionality, `npm test`, `npm run typecheck`, and
 `npm run lint` must all pass before the changes may be submitted.
 
+
+## Database Migrations
+
+`app/lib/schema.ts` is the single source of truth for the complete D1 schema,
+including Better Auth tables. Update that schema first, then run
+`npm run db:generate -- --name=<name>`. Review the generated SQL and commit it
+together with the corresponding `migrations/meta/` changes.
+
+Use `npm run db:migrate:local` to validate every generated migration before
+using `npm run db:migrate:remote`. Do not manually edit Drizzle snapshot or
+journal metadata.
 ## Coding Style & Naming Conventions
 
 Use TypeScript, React functional components, and two-space indentation. Follow

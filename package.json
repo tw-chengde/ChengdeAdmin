@@ -12,12 +12,12 @@
     "test": "vitest run",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:create": "wrangler d1 create chengde-admin-db",
-    "db:migrations:new": "wrangler d1 migrations create chengde-admin-db",
     "db:migrate:local": "wrangler d1 migrations apply chengde-admin-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply chengde-admin-db --remote",
     "db:migrations:list": "wrangler d1 migrations list chengde-admin-db --remote",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -42,6 +42,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
+    "drizzle-kit": "^0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.12",
     "jsdom": "^29.1.1",
