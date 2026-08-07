@@ -17,6 +17,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -49,6 +50,9 @@ import {
   Typography,
 } from "@mui/material";
 import { useMemo, useState } from "react";
+import type { PlatformCode } from "@/app/lib/platforms/types";
+import { channelStyle } from "@/app/utils/orders";
+import { usePlatformSettings } from "./platform-settings-context";
 
 export interface DeliveryRule {
   allowMerge: boolean;
@@ -60,7 +64,7 @@ export interface MergeProductItem {
   id: string;
   sku: string;
   name: string;
-  channel: "MOMO 購物網" | "Mo 店+";
+  channelCode: PlatformCode;
   category: string;
   price: number;
   spec: string;
@@ -76,7 +80,7 @@ const initialProducts: MergeProductItem[] = [
     id: "PRD-MM-001",
     sku: "MM-ITEM-8812",
     name: "誠得尊榮高溫真空保溫瓶 750ml",
-    channel: "MOMO 購物網",
+    channelCode: "MOMO_MAIN",
     category: "生活用品",
     price: 1280,
     spec: "曜石黑 / 750ml",
@@ -97,7 +101,7 @@ const initialProducts: MergeProductItem[] = [
     id: "PRD-MM-002",
     sku: "MM-ITEM-8819",
     name: "承風人體工學透氣辦公椅",
-    channel: "MOMO 購物網",
+    channelCode: "MOMO_MAIN",
     category: "傢俱寢飾",
     price: 6800,
     spec: "經典灰 / 全功能版",
@@ -118,7 +122,7 @@ const initialProducts: MergeProductItem[] = [
     id: "PRD-MO-001",
     sku: "MO-STORE-3310",
     name: "極簡質感無段調節護眼檯燈",
-    channel: "Mo 店+",
+    channelCode: "MO_STORE_PLUS",
     category: "家電數位",
     price: 2480,
     spec: "霧面白 / LED 雙色溫",
@@ -139,7 +143,7 @@ const initialProducts: MergeProductItem[] = [
     id: "PRD-MO-002",
     sku: "MO-STORE-3342",
     name: "有機極致淬鍊咖啡豆 (中深烘焙)",
-    channel: "Mo 店+",
+    channelCode: "MO_STORE_PLUS",
     category: "美食食品",
     price: 650,
     spec: "500g 裝 / 經典接壓閥包裝",
@@ -160,7 +164,7 @@ const initialProducts: MergeProductItem[] = [
     id: "PRD-MM-003",
     sku: "MM-ITEM-9011",
     name: "無線智慧溫控快煮壺 1.5L",
-    channel: "MOMO 購物網",
+    channelCode: "MOMO_MAIN",
     category: "小家電",
     price: 1850,
     spec: "不鏽鋼銀 / 防燙雙層",
@@ -181,7 +185,7 @@ const initialProducts: MergeProductItem[] = [
     id: "PRD-MO-003",
     sku: "MO-STORE-4109",
     name: "雙層隔熱玻璃高質感杯組",
-    channel: "Mo 店+",
+    channelCode: "MO_STORE_PLUS",
     category: "居家生活",
     price: 450,
     spec: "2 入組 / 禮盒裝",
@@ -202,7 +206,7 @@ const initialProducts: MergeProductItem[] = [
     id: "PRD-MM-004",
     sku: "MM-ITEM-9204",
     name: "極致靜音多功能除濕機 12L",
-    channel: "MOMO 購物網",
+    channelCode: "MOMO_MAIN",
     category: "家電數位",
     price: 8900,
     spec: "珍珠白 / 日除濕12L",
@@ -222,15 +226,23 @@ const initialProducts: MergeProductItem[] = [
 ];
 
 export default function OrderMergeView() {
+  const { enabledPlatforms, loading, error: loadError, refresh } = usePlatformSettings();
   const [products, setProducts] = useState<MergeProductItem[]>(initialProducts);
-  const [selectedChannel, setSelectedChannel] = useState<string>("MOMO");
+  const [channelOverride, setChannelOverride] = useState<PlatformCode | "">("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [deliveryFilter, setDeliveryFilter] = useState<string>("ALL"); // ALL, HOME_ALLOW, CVS_ALLOW, NO_MERGE
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const handleChannelTabChange = (_: React.SyntheticEvent, newChannel: string) => {
+  // 選中的通路若已不再啟用（例如在設定頁被停用）或尚未選過，改用第一個啟用中的平台；
+  // 於 render 期間直接推導，避免在 effect 內 setState 造成多餘的連鎖重繪。
+  const selectedChannel: PlatformCode | "" =
+    channelOverride && enabledPlatforms.some((p) => p.code === channelOverride)
+      ? channelOverride
+      : (enabledPlatforms[0]?.code ?? "");
+
+  const handleChannelTabChange = (_: React.SyntheticEvent, newChannel: PlatformCode) => {
     if (newChannel) {
-      setSelectedChannel(newChannel);
+      setChannelOverride(newChannel);
       setSelectedIds([]);
     }
   };
@@ -278,8 +290,7 @@ export default function OrderMergeView() {
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       // 通路篩選
-      if (selectedChannel === "MOMO" && p.channel !== "MOMO 購物網") return false;
-      if (selectedChannel === "MO_STORE" && p.channel !== "Mo 店+") return false;
+      if (selectedChannel && p.channelCode !== selectedChannel) return false;
 
       // 併單類型篩選
       if (deliveryFilter === "HOME_ALLOW" && !p.homeDelivery.allowMerge) return false;
@@ -410,20 +421,22 @@ export default function OrderMergeView() {
 
   // 統計數據 (依選取之通路)
   const stats = useMemo(() => {
-    const momoCount = products.filter((p) => p.channel === "MOMO 購物網").length;
-    const moStoreCount = products.filter((p) => p.channel === "Mo 店+").length;
+    const platformCounts = enabledPlatforms.map((platform) => ({
+      platform,
+      count: products.filter((p) => p.channelCode === platform.code).length,
+    }));
 
-    const channelProducts = products.filter((p) =>
-      selectedChannel === "MOMO" ? p.channel === "MOMO 購物網" : p.channel === "Mo 店+"
-    );
+    const channelProducts = products.filter((p) => p.channelCode === selectedChannel);
 
     const total = channelProducts.length;
     const homeAllowCount = channelProducts.filter((p) => p.homeDelivery.allowMerge).length;
     const cvsAllowCount = channelProducts.filter((p) => p.cvs.allowMerge).length;
     const noMergeCount = channelProducts.filter((p) => !p.homeDelivery.allowMerge && !p.cvs.allowMerge).length;
 
-    return { total, momoCount, moStoreCount, homeAllowCount, cvsAllowCount, noMergeCount };
-  }, [products, selectedChannel]);
+    return { total, platformCounts, homeAllowCount, cvsAllowCount, noMergeCount };
+  }, [products, selectedChannel, enabledPlatforms]);
+
+  const selectedPlatform = enabledPlatforms.find((p) => p.code === selectedChannel);
 
   return (
     <Box sx={{ width: "100%" }}>
@@ -478,7 +491,9 @@ export default function OrderMergeView() {
           <Tooltip title="重新載入規則 (Mock Refresh)">
             <IconButton
               onClick={() =>
-                setSnackbar({ open: true, message: "已從伺服器同步最新商品併單規則數據 (Mock API)", severity: "info" })
+                refresh().then(() =>
+                  setSnackbar({ open: true, message: "已從伺服器同步最新商品併單規則數據 (Mock API)", severity: "info" })
+                )
               }
               sx={{ border: "1px solid #eee5e1", borderRadius: 2, bgcolor: "white" }}
             >
@@ -488,7 +503,13 @@ export default function OrderMergeView() {
         </Stack>
       </Stack>
 
-      {/* 通路 Tabs 切換 (MOMO 購物網 / Mo 店+) */}
+      {loadError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {loadError}
+        </Alert>
+      )}
+
+      {/* 通路 Tabs 切換 (依已啟用平台動態產生) */}
       <Paper elevation={0} sx={{ border: "1px solid #eee5e1", borderRadius: 3, mb: 3, p: 0.8, bgcolor: "white" }}>
         <Tabs
           value={selectedChannel}
@@ -498,60 +519,38 @@ export default function OrderMergeView() {
             "& .MuiTabs-indicator": {
               height: 3,
               borderRadius: "3px 3px 0 0",
-              bgcolor: selectedChannel === "MOMO" ? "#ec008c" : "#ff6b00",
+              bgcolor: selectedPlatform?.color ?? "#eb714a",
             },
           }}
         >
-          <Tab
-            value="MOMO"
-            label={
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                <Box
-                  component="img"
-                  src="/images/momo.png"
-                  alt="MOMO"
-                  sx={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "4px",
-                    objectFit: "contain",
-                  }}
-                />
-                <Typography sx={{ fontWeight: 750, fontSize: 15 }}>MOMO 購物</Typography>
-                <Chip
-                  label={stats.momoCount}
-                  size="small"
-                  sx={{ bgcolor: "#fdf2f8", color: "#be185d", fontWeight: 800, fontSize: 11.5 }}
-                />
-              </Stack>
-            }
-            sx={{ px: 3, py: 1.2, textTransform: "none", color: "#64748b", "&.Mui-selected": { color: "#ec008c" } }}
-          />
-          <Tab
-            value="MO_STORE"
-            label={
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                <Box
-                  component="img"
-                  src="/images/mo-store.jpg"
-                  alt="Mo 店+"
-                  sx={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "4px",
-                    objectFit: "cover",
-                  }}
-                />
-                <Typography sx={{ fontWeight: 750, fontSize: 15 }}>Mo 店+</Typography>
-                <Chip
-                  label={stats.moStoreCount}
-                  size="small"
-                  sx={{ bgcolor: "#fff7ed", color: "#ea580c", fontWeight: 800, fontSize: 11.5 }}
-                />
-              </Stack>
-            }
-            sx={{ px: 3, py: 1.2, textTransform: "none", color: "#64748b", "&.Mui-selected": { color: "#ff6b00" } }}
-          />
+          {enabledPlatforms.map((platform) => (
+            <Tab
+              key={platform.code}
+              value={platform.code}
+              label={
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                  <Box
+                    component="img"
+                    src={platform.logo}
+                    alt={platform.name}
+                    sx={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "4px",
+                      objectFit: platform.logoObjectFit,
+                    }}
+                  />
+                  <Typography sx={{ fontWeight: 750, fontSize: 15 }}>{platform.name}</Typography>
+                  <Chip
+                    label={products.filter((p) => p.channelCode === platform.code).length}
+                    size="small"
+                    sx={{ bgcolor: platform.bgcolor, color: platform.color, fontWeight: 800, fontSize: 11.5 }}
+                  />
+                </Stack>
+              }
+              sx={{ px: 3, py: 1.2, textTransform: "none", color: "#64748b", "&.Mui-selected": { color: platform.color } }}
+            />
+          ))}
         </Tabs>
       </Paper>
 
@@ -559,7 +558,7 @@ export default function OrderMergeView() {
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }, gap: 2, mb: 3.5 }}>
         <Paper elevation={0} sx={{ p: 2.2, border: "1px solid #eee5e1", borderRadius: 3, bgcolor: "white" }}>
           <Typography color="text.secondary" sx={{ fontSize: 13, fontWeight: 600 }}>
-            {selectedChannel === "MOMO" ? "MOMO 購物" : "Mo 店+"} 商品總數
+            {selectedPlatform?.name ?? ""} 商品總數
           </Typography>
           <Stack direction="row" spacing={1} sx={{ alignItems: "baseline", mt: 1 }}>
             <Typography sx={{ fontSize: 26, fontWeight: 800 }}>{stats.total}</Typography>
@@ -567,9 +566,15 @@ export default function OrderMergeView() {
               項商品
             </Typography>
           </Stack>
-          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-            <Chip label={`MOMO: ${stats.momoCount}`} size="small" sx={{ bgcolor: "#e3f2fd", color: "#1565c0", fontWeight: 700, fontSize: 11 }} />
-            <Chip label={`Mo店+: ${stats.moStoreCount}`} size="small" sx={{ bgcolor: "#f3e5f5", color: "#7b1fa2", fontWeight: 700, fontSize: 11 }} />
+          <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap", gap: 1 }}>
+            {stats.platformCounts.map(({ platform, count }) => (
+              <Chip
+                key={platform.code}
+                label={`${platform.name}: ${count}`}
+                size="small"
+                sx={{ bgcolor: platform.bgcolor, color: platform.color, fontWeight: 700, fontSize: 11 }}
+              />
+            ))}
           </Stack>
         </Paper>
 
@@ -649,7 +654,7 @@ export default function OrderMergeView() {
             <TextField
               fullWidth
               size="small"
-              placeholder={`搜尋 ${selectedChannel === "MOMO" ? "MOMO 購物" : "Mo 店+"} 的商品名稱、SKU 編號...`}
+              placeholder={`搜尋 ${selectedPlatform?.name ?? ""} 的商品名稱、SKU 編號...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               slotProps={{
@@ -707,7 +712,13 @@ export default function OrderMergeView() {
             </TableHead>
 
             <TableBody>
-              {filteredProducts.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={22} />
+                  </TableCell>
+                </TableRow>
+              ) : filteredProducts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                     <Typography color="text.secondary" sx={{ fontSize: 15, fontWeight: 600 }}>
@@ -721,6 +732,7 @@ export default function OrderMergeView() {
               ) : (
                 filteredProducts.map((p) => {
                   const isSelected = selectedIds.includes(p.id);
+                  const ch = channelStyle(p.channelCode);
 
                   return (
                     <TableRow key={p.id} hover selected={isSelected}>
@@ -765,31 +777,17 @@ export default function OrderMergeView() {
 
                       {/* 通路標籤 */}
                       <TableCell>
-                        {p.channel === "MOMO 購物網" ? (
-                          <Chip
-                            label="MOMO 購物網"
-                            size="small"
-                            sx={{
-                              bgcolor: "#e3f2fd",
-                              color: "#1565c0",
-                              fontWeight: 750,
-                              fontSize: 11.5,
-                              border: "1px solid #bbdefb",
-                            }}
-                          />
-                        ) : (
-                          <Chip
-                            label="Mo 店+"
-                            size="small"
-                            sx={{
-                              bgcolor: "#f3e5f5",
-                              color: "#7b1fa2",
-                              fontWeight: 750,
-                              fontSize: 11.5,
-                              border: "1px solid #e1bee7",
-                            }}
-                          />
-                        )}
+                        <Chip
+                          label={ch.name}
+                          size="small"
+                          sx={{
+                            bgcolor: ch.bgcolor,
+                            color: ch.color,
+                            fontWeight: 750,
+                            fontSize: 11.5,
+                            border: `1px solid ${ch.borderColor}`,
+                          }}
+                        />
                       </TableCell>
 
                       {/* 宅配併單規則 */}
@@ -912,7 +910,7 @@ export default function OrderMergeView() {
                   <Box>
                     <Typography sx={{ fontWeight: 800, fontSize: 15 }}>{editProduct.name}</Typography>
                     <Typography color="text.secondary" sx={{ fontSize: 12.5 }}>
-                      SKU: {editProduct.sku} | 通路: {editProduct.channel}
+                      SKU: {editProduct.sku} | 通路: {channelStyle(editProduct.channelCode).name}
                     </Typography>
                   </Box>
                 </Stack>

@@ -1,7 +1,9 @@
+import type { PlatformCode } from "@/app/lib/platforms/types";
+
 export interface OrderItem {
   id: string;
-  channel: "MOMO 購物網" | "Mo 店+";
-  channelCode: "MOMO_MAIN" | "MO_STORE_PLUS";
+  channel: string;
+  channelCode: PlatformCode;
   orderNo: string;
   channelOrderNo: string;
   customerName: string;

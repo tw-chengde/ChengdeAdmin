@@ -1,4 +1,5 @@
 import { OrderItem } from "@/app/types/order";
+import { getAllPlatformDefinitions } from "@/app/lib/platforms/registry";
 
 export function statusStyle(status: OrderItem["status"]) {
   switch (status) {
@@ -20,20 +21,21 @@ export function statusStyle(status: OrderItem["status"]) {
 }
 
 export function channelStyle(channelCode: OrderItem["channelCode"]) {
-  if (channelCode === "MOMO_MAIN") {
+  const def = getAllPlatformDefinitions().find((d) => d.code === channelCode);
+  if (!def) {
     return {
-      name: "MOMO 購物網",
-      color: "#ec008c",
-      bgcolor: "rgba(236, 0, 140, 0.08)",
-      borderColor: "rgba(236, 0, 140, 0.25)",
-      gradient: "linear-gradient(135deg, #ec008c, #d80073)",
+      name: channelCode,
+      color: "#344054",
+      bgcolor: "#f2f4f7",
+      borderColor: "#eaecf0",
+      gradient: "linear-gradient(135deg, #64748b, #475569)",
     };
   }
   return {
-    name: "Mo 店+",
-    color: "#ff6b00",
-    bgcolor: "rgba(255, 107, 0, 0.08)",
-    borderColor: "rgba(255, 107, 0, 0.25)",
-    gradient: "linear-gradient(135deg, #ff6b00, #ea580c)",
+    name: def.name,
+    color: def.color,
+    bgcolor: def.bgcolor,
+    borderColor: def.borderColor,
+    gradient: def.gradient,
   };
 }

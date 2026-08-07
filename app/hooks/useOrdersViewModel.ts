@@ -1,27 +1,19 @@
 import { useState, useMemo } from "react";
 import { OrderItem } from "@/app/types/order";
+import type { PlatformCode } from "@/app/lib/platforms/types";
 
-export type ChannelTab = "ALL" | "MOMO_MAIN" | "MO_STORE_PLUS";
+export type ChannelTab = "ALL" | PlatformCode;
 
 export function useOrdersViewModel(initialOrders: OrderItem[]) {
   const [channelTab, setChannelTab] = useState<ChannelTab>("ALL");
   const [statusTab, setStatusTab] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSyncing, setIsSyncing] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [copiedText, setCopiedText] = useState(false);
 
-  const handleSync = () => {
-    setIsSyncing(true);
-    setTimeout(() => {
-      setIsSyncing(false);
-    }, 900);
-  };
-
   const filteredOrders = useMemo(() => {
     return initialOrders.filter((order) => {
-      if (channelTab === "MOMO_MAIN" && order.channelCode !== "MOMO_MAIN") return false;
-      if (channelTab === "MO_STORE_PLUS" && order.channelCode !== "MO_STORE_PLUS") return false;
+      if (channelTab !== "ALL" && order.channelCode !== channelTab) return false;
 
       if (statusTab !== "ALL" && order.status !== statusTab) return false;
 
@@ -41,11 +33,8 @@ export function useOrdersViewModel(initialOrders: OrderItem[]) {
   }, [initialOrders, channelTab, statusTab, searchQuery]);
 
   const stats = useMemo(() => {
-    const channelFiltered = initialOrders.filter((o) => {
-      if (channelTab === "MOMO_MAIN") return o.channelCode === "MOMO_MAIN";
-      if (channelTab === "MO_STORE_PLUS") return o.channelCode === "MO_STORE_PLUS";
-      return true;
-    });
+    const channelFiltered =
+      channelTab === "ALL" ? initialOrders : initialOrders.filter((o) => o.channelCode === channelTab);
 
     const totalOrders = channelFiltered.length;
     const totalRevenue = channelFiltered.reduce((sum, o) => sum + o.totalAmount, 0);
@@ -69,7 +58,6 @@ export function useOrdersViewModel(initialOrders: OrderItem[]) {
     setStatusTab,
     searchQuery,
     setSearchQuery,
-    isSyncing,
     selectedOrder,
     setSelectedOrder,
     copiedText,
@@ -79,7 +67,6 @@ export function useOrdersViewModel(initialOrders: OrderItem[]) {
     stats,
 
     // Handlers
-    handleSync,
     copyToClipboard,
   };
 }

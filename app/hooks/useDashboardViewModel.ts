@@ -6,8 +6,7 @@ import type { PageId } from "@/app/types/dashboard";
 export function useDashboardViewModel() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
-  const [activePage, setActivePage] = useState<PageId>("overview");
-  const [period, setPeriod] = useState("近 12 天");
+  const [activePage, setActivePage] = useState<PageId>("orders");
   const desktop = useMediaQuery(appTheme.breakpoints.up("md"));
   const compactSidebar = desktop && desktopCollapsed;
 
@@ -23,8 +22,6 @@ export function useDashboardViewModel() {
     setDesktopCollapsed,
     activePage,
     navigateTo,
-    period,
-    setPeriod,
     desktop,
     compactSidebar,
   };

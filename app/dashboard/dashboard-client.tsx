@@ -1,26 +1,17 @@
 "use client";
 
 import MenuRounded from "@mui/icons-material/MenuRounded";
-import { Box, CssBaseline, IconButton, Paper, Stack, ThemeProvider, Typography } from "@mui/material";
+import { Box, CssBaseline, IconButton, Stack, ThemeProvider } from "@mui/material";
 import type { ReactNode } from "react";
 import { appTheme } from "@/app/theme";
 import { useDashboardViewModel } from "@/app/hooks/useDashboardViewModel";
 import type { PageId } from "@/app/types/dashboard";
 import DashboardSidebar from "./dashboard-sidebar";
-import { navItems } from "./nav-items";
-import OverviewView from "./overview-view";
 import OrderMergeView from "./order-merge-view";
 import OrdersView from "./orders-view";
+import { PlatformSettingsProvider } from "./platform-settings-context";
+import PlatformsView from "./platforms-view";
 import ProductsView from "./products-view";
-
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <Paper elevation={0} sx={{ p: 6, border: "1px solid #eee5e1", borderRadius: 3, textAlign: "center" }}>
-      <Typography component="h1" sx={{ fontSize: 24, fontWeight: 800, mb: 1 }}>{label}</Typography>
-      <Typography color="text.secondary" sx={{ fontSize: 14 }}>這個模組功能開發中，敬請期待。</Typography>
-    </Paper>
-  );
-}
 
 export default function DashboardClient({ user }: { user: { name: string; email: string; image?: string } }) {
   const {
@@ -34,12 +25,10 @@ export default function DashboardClient({ user }: { user: { name: string; email:
   } = useDashboardViewModel();
 
   const pageContent: Record<PageId, ReactNode> = {
-    overview: <OverviewView />,
     orders: <OrdersView />,
     merge: <OrderMergeView />,
     products: <ProductsView />,
-    customers: <ComingSoon label={navItems.find((item) => item.id === "customers")!.label} />,
-    reports: <ComingSoon label={navItems.find((item) => item.id === "reports")!.label} />,
+    settings: <PlatformsView />,
   };
 
   return (
@@ -70,7 +59,7 @@ export default function DashboardClient({ user }: { user: { name: string; email:
             )}
           </Stack>
           <Box sx={{ p: { xs: 2, sm: 3.5, lg: 4 }, maxWidth: 1540, mx: "auto" }}>
-            {pageContent[activePage]}
+            <PlatformSettingsProvider>{pageContent[activePage]}</PlatformSettingsProvider>
           </Box>
         </Box>
       </Box>

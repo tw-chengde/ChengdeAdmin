@@ -9,10 +9,12 @@ import SearchRounded from "@mui/icons-material/SearchRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import SyncRounded from "@mui/icons-material/SyncRounded";
 import {
+  Alert,
   Avatar,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -34,11 +36,48 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { useEffect, useState } from "react";
 import { useOrdersViewModel } from "@/app/hooks/useOrdersViewModel";
-import { mockOrders } from "../../tests/mocks/orders";
+import type { OrderItem } from "@/app/types/order";
 import { channelStyle, statusStyle } from "@/app/utils/orders";
+import { usePlatformSettings } from "./platform-settings-context";
+import { loadOrdersPageData } from "./orders-actions";
 
 export default function OrdersView() {
+  const { enabledPlatforms } = usePlatformSettings();
+  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const fetchOrdersData = () => loadOrdersPageData().then((rows) => setOrders(rows));
+
+  // Initial load. State is only updated from the async callbacks (not
+  // synchronously in the effect body); `loading` already defaults to true.
+  useEffect(() => {
+    let active = true;
+    loadOrdersPageData()
+      .then((rows) => {
+        if (active) setOrders(rows);
+      })
+      .catch((err) => {
+        if (active) setLoadError(err instanceof Error ? err.message : "載入訂單失敗");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleSync = () => {
+    setIsSyncing(true);
+    fetchOrdersData()
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "載入訂單失敗"))
+      .finally(() => setIsSyncing(false));
+  };
+
   const {
     channelTab,
     setChannelTab,
@@ -46,15 +85,21 @@ export default function OrdersView() {
     setStatusTab,
     searchQuery,
     setSearchQuery,
-    isSyncing,
     selectedOrder,
     setSelectedOrder,
     copiedText,
     filteredOrders,
     stats,
-    handleSync,
     copyToClipboard,
-  } = useOrdersViewModel(mockOrders);
+  } = useOrdersViewModel(orders);
+
+  // 若目前選中的平台在最新載入結果中已不再啟用（例如被設定頁停用），重置回「全部」，
+  // 避免 MUI Tabs 的 value 對不到任何 Tab。
+  useEffect(() => {
+    if (channelTab !== "ALL" && !enabledPlatforms.some((p) => p.code === channelTab)) {
+      setChannelTab("ALL");
+    }
+  }, [channelTab, enabledPlatforms, setChannelTab]);
 
   return (
     <Box>
@@ -95,6 +140,12 @@ export default function OrdersView() {
           </Button>
         </Stack>
       </Stack>
+
+      {loadError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {loadError}
+        </Alert>
+      )}
 
       <Paper
         elevation={0}
@@ -160,12 +211,7 @@ export default function OrdersView() {
             "& .MuiTabs-indicator": {
               height: 3,
               borderRadius: "3px 3px 0 0",
-              bgcolor:
-                channelTab === "MOMO_MAIN"
-                  ? "#ec008c"
-                  : channelTab === "MO_STORE_PLUS"
-                  ? "#ff6b00"
-                  : "#2563eb",
+              bgcolor: enabledPlatforms.find((p) => p.code === channelTab)?.color ?? "#2563eb",
             },
           }}
         >
@@ -175,68 +221,48 @@ export default function OrdersView() {
               <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                 <StorefrontRounded fontSize="small" />
                 <Typography sx={{ fontWeight: 750, fontSize: 14 }}>全部電商通路</Typography>
-                <Chip label={mockOrders.length} size="small" sx={{ bgcolor: "#f1f5f9", fontWeight: 800, fontSize: 11 }} />
+                <Chip label={orders.length} size="small" sx={{ bgcolor: "#f1f5f9", fontWeight: 800, fontSize: 11 }} />
               </Stack>
             }
             sx={{ px: 2.5, py: 1.2, textTransform: "none", color: "#64748b", "&.Mui-selected": { color: "#0f172a" } }}
           />
-          <Tab
-            value="MOMO_MAIN"
-            label={
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                <Box
-                  component="img"
-                  src="/images/momo.png"
-                  alt="MOMO"
-                  sx={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "4px",
-                    objectFit: "contain",
-                  }}
-                />
-                <Typography sx={{ fontWeight: 750, fontSize: 14 }}>MOMO 購物網</Typography>
-                <Chip
-                  label={mockOrders.filter((o) => o.channelCode === "MOMO_MAIN").length}
-                  size="small"
-                  sx={{ bgcolor: "#fdf2f8", color: "#be185d", fontWeight: 800, fontSize: 11 }}
-                />
-              </Stack>
-            }
-            sx={{ px: 2.5, py: 1.2, textTransform: "none", color: "#64748b", "&.Mui-selected": { color: "#ec008c" } }}
-          />
-          <Tab
-            value="MO_STORE_PLUS"
-            label={
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                <Box
-                  component="img"
-                  src="/images/mo-store.jpg"
-                  alt="Mo 店+"
-                  sx={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "4px",
-                    objectFit: "cover",
-                  }}
-                />
-                <Typography sx={{ fontWeight: 750, fontSize: 14 }}>Mo 店+</Typography>
-                <Chip
-                  label={mockOrders.filter((o) => o.channelCode === "MO_STORE_PLUS").length}
-                  size="small"
-                  sx={{ bgcolor: "#fff7ed", color: "#c2410c", fontWeight: 800, fontSize: 11 }}
-                />
-              </Stack>
-            }
-            sx={{ px: 2.5, py: 1.2, textTransform: "none", color: "#64748b", "&.Mui-selected": { color: "#ff6b00" } }}
-          />
+          {enabledPlatforms.map((platform) => (
+            <Tab
+              key={platform.code}
+              value={platform.code}
+              label={
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                  <Box
+                    component="img"
+                    src={platform.logo}
+                    alt={platform.name}
+                    sx={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "4px",
+                      objectFit: platform.logoObjectFit,
+                    }}
+                  />
+                  <Typography sx={{ fontWeight: 750, fontSize: 14 }}>{platform.name}</Typography>
+                  <Chip
+                    label={orders.filter((o) => o.channelCode === platform.code).length}
+                    size="small"
+                    sx={{ bgcolor: platform.bgcolor, color: platform.color, fontWeight: 800, fontSize: 11 }}
+                  />
+                </Stack>
+              }
+              sx={{ px: 2.5, py: 1.2, textTransform: "none", color: "#64748b", "&.Mui-selected": { color: platform.color } }}
+            />
+          ))}
         </Tabs>
       </Paper>
 
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }, gap: 2.25, mb: 3 }}>
         <Paper elevation={0} sx={{ p: 2.5, border: "1px solid #eaecf0", borderRadius: 3 }}>
           <Typography color="text.secondary" sx={{ fontSize: 13, fontWeight: 600 }}>
-            {channelTab === "ALL" ? "本月總訂單筆數" : channelTab === "MOMO_MAIN" ? "MOMO 購物網筆數" : "Mo 店+ 訂單筆數"}
+            {channelTab === "ALL"
+              ? "本月總訂單筆數"
+              : `${enabledPlatforms.find((p) => p.code === channelTab)?.name ?? ""}筆數`}
           </Typography>
           <Typography sx={{ mt: 1, fontSize: 26, fontWeight: 850 }}>{stats.totalOrders} 筆</Typography>
           <Typography color="text.secondary" sx={{ fontSize: 12, mt: 0.8 }}>
@@ -364,7 +390,13 @@ export default function OrdersView() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredOrders.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={22} />
+                  </TableCell>
+                </TableRow>
+              ) : filteredOrders.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                     <Typography color="text.secondary" sx={{ fontSize: 14 }}>
