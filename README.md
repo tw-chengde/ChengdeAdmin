@@ -3,7 +3,7 @@
 Chengde Admin is an internal administration dashboard built with Next.js, React,
 Material UI, and [vinext](https://github.com/cloudflare/vinext). It runs on
 Cloudflare Workers, uses D1 for persistence, and authenticates users with Google
-through Auth.js.
+through Better Auth.
 
 ## Features
 
@@ -11,6 +11,8 @@ through Auth.js.
 - Dashboard overview and navigation
 - Product catalog and inventory management
 - Order review and order-merging workflows
+- Multi-platform support (`MOMO_MAIN`, `MO_STORE_PLUS`) with a connector
+  registry and a shared platform settings page
 
 ## Prerequisites
 
@@ -34,7 +36,9 @@ through Auth.js.
    openssl rand -base64 32
    ```
 
-   Use the generated value for `AUTH_SECRET`. For local authentication, add
+   Use the generated value for `BETTER_AUTH_SECRET`, keep `BETTER_AUTH_URL` at
+   `http://localhost:3000`, and fill in `AUTH_GOOGLE_ID` and
+   `AUTH_GOOGLE_SECRET`. For local authentication, add
    `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI
    in the Google OAuth application.
 
@@ -57,8 +61,8 @@ through Auth.js.
 | Command | Description |
 | --- | --- |
 | `npm run dev` | Start the local development server |
-| `npm run build` | Create a production build |
-| `npm run start` | Start the built application |
+| `npm run build` | Create the production Worker and client bundles |
+| `npm run preview` | Serve the built Worker locally with Wrangler on port 3000 |
 | `npm test` | Run the Vitest test suite once |
 | `npm run test:watch` | Run Vitest in watch mode |
 | `npm run typecheck` | Check TypeScript types without emitting files |
@@ -73,16 +77,26 @@ through Auth.js.
 
 ```text
 app/
-  dashboard/   Dashboard pages and feature views
+  api/auth/    Better Auth catch-all route handler
+  dashboard/   Dashboard pages and feature views, including platform-aware routes
   hooks/       Dashboard and order view-model hooks
-  lib/         Server-side integrations, including D1 access
+  lib/         Server-side integrations, D1 access, schema, and platform connectors
   types/       Shared domain types
   utils/       Dashboard, order, and product utilities
-migrations/    Cloudflare D1 schema migrations
+auth.ts        Better Auth configuration and session helpers
+worker/        Cloudflare Worker entry point
+functions/     Standalone workspaces, currently the momo-proxy Cloud Function
+migrations/    Cloudflare D1 schema migrations and Drizzle metadata
+public/        Static assets
 tests/         Vitest and Testing Library tests
-vite.config.ts vinext and Cloudflare Vite configuration
-wrangler.json  Cloudflare Worker, assets, and D1 bindings
+drizzle.config.ts  Drizzle Kit schema and migration output paths
+vite.config.ts     vinext and Cloudflare Vite configuration
+vitest.config.ts   Vitest and jsdom test configuration
+wrangler.json      Cloudflare Worker, assets, and D1 bindings
 ```
+
+`functions/momo-proxy` is an npm workspace that deploys separately as a Google
+Cloud Function; it is not part of the Worker bundle.
 
 ## Database changes
 
@@ -90,12 +104,13 @@ wrangler.json  Cloudflare Worker, assets, and D1 bindings
 the Better Auth tables. Drizzle Kit writes generated SQL and its metadata
 directly to `migrations/`.
 
-### Initial migration
+### Rebuilding a database from scratch
 
-`migrations/0000_dapper_layla_miller.sql` is the first migration and creates
-the complete schema.
+The current schema is the result of applying every file in `migrations/` in
+order, starting from `0000_dapper_layla_miller.sql`.
 
-After deleting and recreating the remote D1 database, apply it with Wrangler:
+After deleting and recreating the remote D1 database, apply them all with
+Wrangler:
 
 ```bash
 npm run db:migrate:local
@@ -120,4 +135,4 @@ Commit each generated SQL migration together with its `migrations/meta/` changes
 
 - [vinext](https://github.com/cloudflare/vinext)
 - [Cloudflare D1](https://developers.cloudflare.com/d1/)
-- [Auth.js](https://authjs.dev/)
+- [Better Auth](https://www.better-auth.com/)

@@ -17,8 +17,9 @@ function createAuth() {
   return betterAuth({
     baseURL: requireEnv("BETTER_AUTH_URL"),
     // Better Auth detects the raw D1 binding (`batch`/`exec`/`prepare`) and
-    // wires up its own D1 dialect — no extra adapter package needed. Tables
-    // live in migrations/0002_create_better_auth_tables.sql.
+    // wires up its own D1 dialect — no extra adapter package needed. The
+    // `user`/`session`/`account`/`verification` tables are declared in
+    // app/lib/schema.ts and created by the Drizzle-generated migrations.
     database: getD1Database(),
     socialProviders: {
       google: {

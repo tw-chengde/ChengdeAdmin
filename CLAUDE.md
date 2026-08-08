@@ -1,0 +1,1 @@
+Please refer to the core agent behaviors here: [AGENTS.md](./AGENTS.md)
