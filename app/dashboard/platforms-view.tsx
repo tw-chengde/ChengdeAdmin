@@ -27,7 +27,7 @@ export default function PlatformsView() {
         設定
       </Typography>
       <Typography color="text.secondary" sx={{ fontSize: 14, mb: 3 }}>
-        選擇要在訂單管理顯示與抓單的電商平台。
+        選擇要啟用的電商平台。
       </Typography>
 
       {error && (

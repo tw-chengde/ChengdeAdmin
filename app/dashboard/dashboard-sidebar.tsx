@@ -1,6 +1,8 @@
 "use client";
 
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import MenuOpenRounded from "@mui/icons-material/MenuOpenRounded";
 import {
@@ -18,7 +20,6 @@ import {
   Typography,
 } from "@mui/material";
 import { signOutFromDashboard } from "@/app/actions";
-import type { PageId } from "@/app/types/dashboard";
 import { navItems } from "./nav-items";
 
 const drawerWidth = 252;
@@ -29,8 +30,6 @@ export default function DashboardSidebar({
   desktop,
   compactSidebar,
   mobileOpen,
-  activePage,
-  onNavigate,
   onCloseMobile,
   onToggleCollapsed,
 }: {
@@ -38,11 +37,10 @@ export default function DashboardSidebar({
   desktop: boolean;
   compactSidebar: boolean;
   mobileOpen: boolean;
-  activePage: PageId;
-  onNavigate: (page: PageId) => void;
   onCloseMobile: () => void;
   onToggleCollapsed: () => void;
 }) {
+  const pathname = usePathname();
   const sidebarWidth = compactSidebar ? collapsedDrawerWidth : drawerWidth;
 
   const drawerContent = (
@@ -80,11 +78,16 @@ export default function DashboardSidebar({
           工作區
         </Typography>
         <List disablePadding>
-          {navItems.map(({ id, label, icon: Icon }) => (
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const activePage = pathname === href;
+            return (
             <ListItemButton
-              key={id}
-              selected={activePage === id}
-              onClick={() => onNavigate(id)}
+              key={href}
+              component={Link}
+              href={href}
+              selected={activePage}
+              onClick={onCloseMobile}
+              aria-current={activePage ? "page" : undefined}
               aria-label={label}
               sx={{
                 borderRadius: 2,
@@ -92,7 +95,7 @@ export default function DashboardSidebar({
                 px: compactSidebar ? 1 : 1.5,
                 mb: 0.6,
                 py: 1.1,
-                color: activePage === id ? "white" : "rgba(255,255,255,.72)",
+                color: activePage ? "white" : "rgba(255,255,255,.72)",
                 transition: "all .18s ease",
                 "&.Mui-selected": {
                   bgcolor: "var(--color-primary)",
@@ -108,11 +111,12 @@ export default function DashboardSidebar({
               </ListItemIcon>
               <ListItemText
                 sx={{ display: compactSidebar ? "none" : "block" }}
-                primary={<Typography sx={{ fontSize: 14, fontWeight: activePage === id ? 700 : 600 }}>{label}</Typography>}
+                primary={<Typography sx={{ fontSize: 14, fontWeight: activePage ? 700 : 600 }}>{label}</Typography>}
               />
-              {!compactSidebar && activePage === id && <ChevronRightRounded sx={{ fontSize: 18 }} />}
+              {!compactSidebar && activePage && <ChevronRightRounded sx={{ fontSize: 18 }} />}
             </ListItemButton>
-          ))}
+            );
+          })}
         </List>
       </Box>
 
