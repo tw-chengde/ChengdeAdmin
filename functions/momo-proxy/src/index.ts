@@ -4,6 +4,9 @@ import { createProxyMiddleware, fixRequestBody } from "http-proxy-middleware";
 
 const defaultAllowedTargetHosts = ["scmapi.momoshop.com.tw", "api3p.momo.com.tw"];
 
+/** 不可轉發給平台的標頭：proxy 自己的憑證，以及會洩漏來源的轉送標頭。 */
+const strippedRequestHeaders = ["x-proxy-token", "x-target-url", "x-forwarded-for", "x-real-ip"];
+
 export interface MomoProxyOptions {
   defaultTarget?: string;
   allowedTargetHosts?: string[];
@@ -90,11 +93,8 @@ export function createMomoProxyApp({
       changeOrigin: true,
       on: {
         proxyReq: (proxyReq, req) => {
+          for (const header of strippedRequestHeaders) proxyReq.removeHeader(header);
           fixRequestBody(proxyReq, req);
-          proxyReq.removeHeader("x-proxy-token");
-          proxyReq.removeHeader("x-target-url");
-          proxyReq.removeHeader("x-forwarded-for");
-          proxyReq.removeHeader("x-real-ip");
         },
         error: (error, _req, res) => {
           console.error("MOMO proxy request failed:", error);
