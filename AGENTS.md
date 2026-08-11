@@ -15,6 +15,9 @@ Per-platform integrations live in `app/lib/platforms/`: `connector.ts` and
 `types.ts` define the shared contract, `registry.ts` maps a platform code to its
 connector, and each platform gets its own module (`momo.ts`, `mo-store-plus.ts`).
 Add a new platform there rather than branching on the platform code inside views.
+Documentation, OpenAPI schemas, and platform integration guides are index-mapped in [docs/AGENTS.md](./docs/AGENTS.md).
+
+
 
 `app/dashboard/(platform-aware)/` is a route group, so it does not appear in
 URLs. `tests/project.test.mjs` asserts that every `href` in
