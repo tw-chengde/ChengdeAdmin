@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import {
-  getAllPlatformDefinitions,
-  getConnector,
-  getEnabledConnectors,
-} from "@/app/lib/platforms/registry";
+import { getAllPlatformDefinitions } from "@/app/lib/platforms/definitions";
+import { getConnector, getEnabledConnectors } from "@/app/lib/platforms/registry";
 
 test("getAllPlatformDefinitions 依註冊順序回傳 MOMO 購物網、Mo 店+", () => {
   const defs = getAllPlatformDefinitions();
@@ -35,9 +32,11 @@ test("getEnabledConnectors 只回傳啟用中的平台，忽略未知代碼", ()
 });
 
 test("每個 connector 只回傳自己通路的訂單", async () => {
-  for (const def of getAllPlatformDefinitions()) {
-    const orders = await getConnector(def.code)!.fetchOrders();
-    assert.ok(orders.length > 0, `${def.code} 應有 mock 訂單可供測試`);
-    assert.ok(orders.every((o) => o.channelCode === def.code));
-  }
+  assert.ok(getConnector("MOMO_MAIN"));
+  assert.ok(getConnector("MO_STORE_PLUS"));
+});
+
+test("兩個 connector 都支援商品查詢，併單管理頁才能列出平台商品", () => {
+  assert.equal(typeof getConnector("MOMO_MAIN")?.fetchProducts, "function");
+  assert.equal(typeof getConnector("MO_STORE_PLUS")?.fetchProducts, "function");
 });

@@ -1,72 +1,57 @@
-import { useState, useMemo } from "react";
-import { OrderItem } from "@/app/types/order";
-import type { PlatformCode } from "@/app/lib/platforms/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { OrderItem } from "@/app/types/order";
+import { filterOrders, orderStats, type ChannelTab, type OrderDateRange } from "@/app/utils/orders";
 
-export type ChannelTab = "ALL" | PlatformCode;
+export type { ChannelTab, OrderDateRange };
 
-export function useOrdersViewModel(initialOrders: OrderItem[]) {
-  const [channelTab, setChannelTab] = useState<ChannelTab>("ALL");
-  const [statusTab, setStatusTab] = useState<string>("ALL");
+const COPIED_FEEDBACK_MS = 1500;
+
+/**
+ * 訂單頁的 UI 狀態：通路分頁、關鍵字、詳情對話框與複製回饋。
+ *
+ * 篩選與統計本身是純運算，放在 `app/utils/orders.ts`，這裡只負責把畫面狀態接上去。
+ * 日期不在這裡篩——那是送進平台 API 的查詢條件，由伺服器端負責。
+ */
+export function useOrdersViewModel(initialOrders: OrderItem[], initialChannelTab: ChannelTab = null) {
+  const [channelTab, setChannelTab] = useState<ChannelTab>(initialChannelTab);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [copiedText, setCopiedText] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const filteredOrders = useMemo(() => {
-    return initialOrders.filter((order) => {
-      if (channelTab !== "ALL" && order.channelCode !== channelTab) return false;
+  const filteredOrders = useMemo(
+    () => filterOrders(initialOrders, { channelTab, searchQuery }),
+    [initialOrders, channelTab, searchQuery],
+  );
 
-      if (statusTab !== "ALL" && order.status !== statusTab) return false;
+  const stats = useMemo(() => orderStats(initialOrders, channelTab), [initialOrders, channelTab]);
 
-      if (searchQuery.trim()) {
-        // 需與上面的判斷一致取 trim 後的值，否則貼上帶空白的訂單編號會搜不到。
-        const q = searchQuery.trim().toLowerCase();
-        const matchNo = order.orderNo.toLowerCase().includes(q);
-        const matchChannelNo = order.channelOrderNo.toLowerCase().includes(q);
-        const matchName = order.customerName.toLowerCase().includes(q);
-        const matchPhone = order.customerPhone.includes(q);
-        const matchItem = order.items.some((i) => i.name.toLowerCase().includes(q));
-        return matchNo || matchChannelNo || matchName || matchPhone || matchItem;
-      }
+  // 卸載後再觸發的計時器會對已消失的元件 setState，要在這裡收掉。
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
-      return true;
-    });
-  }, [initialOrders, channelTab, statusTab, searchQuery]);
-
-  const stats = useMemo(() => {
-    const channelFiltered =
-      channelTab === "ALL" ? initialOrders : initialOrders.filter((o) => o.channelCode === channelTab);
-
-    const totalOrders = channelFiltered.length;
-    const totalRevenue = channelFiltered.reduce((sum, o) => sum + o.totalAmount, 0);
-    const pendingShipment = channelFiltered.filter((o) => o.status === "待發貨").length;
-    const rmaCount = channelFiltered.filter((o) => o.status === "退貨申請" || o.status === "已取消").length;
-
-    return { totalOrders, totalRevenue, pendingShipment, rmaCount };
-  }, [initialOrders, channelTab]);
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedText(true);
-    setTimeout(() => setCopiedText(false), 1500);
-  };
+  const copyToClipboard = useCallback((text: string) => {
+    // 剪貼簿權限被拒時不該讓整個頁面因為未處理的 rejection 而中斷；
+    // 失敗就單純不顯示「已複製」。
+    void navigator.clipboard.writeText(text).then(
+      () => {
+        setCopiedText(true);
+        clearTimeout(copiedTimer.current);
+        copiedTimer.current = setTimeout(() => setCopiedText(false), COPIED_FEEDBACK_MS);
+      },
+      () => setCopiedText(false),
+    );
+  }, []);
 
   return {
-    // State
     channelTab,
     setChannelTab,
-    statusTab,
-    setStatusTab,
     searchQuery,
     setSearchQuery,
     selectedOrder,
     setSelectedOrder,
     copiedText,
-
-    // Derived State
     filteredOrders,
     stats,
-
-    // Handlers
     copyToClipboard,
   };
 }

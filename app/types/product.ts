@@ -3,6 +3,10 @@ export interface Product {
   code: string;
   name: string;
   stock: number;
+  /** 超商取貨的併單上限件數，0 代表不可併單。 */
+  cvs_merge_limit: number;
+  /** 物流（宅配）的併單上限件數，0 代表不可併單。 */
+  logistics_merge_limit: number;
   created_at: string;
 }
 
@@ -10,6 +14,8 @@ export interface CreateProductInput {
   code: string;
   name: string;
   stock: number;
+  cvsMergeLimit: number;
+  logisticsMergeLimit: number;
 }
 
 export interface UpdateProductInput extends CreateProductInput {

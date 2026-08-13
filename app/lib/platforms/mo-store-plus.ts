@@ -1,19 +1,49 @@
-import { mockOrders } from "@/tests/mocks/orders";
 import type { PlatformConnector } from "./connector";
+import { moStorePlusDefinition } from "./definitions";
+import { MoStorePlusClient } from "./mo-store-plus-client";
+import { mapMoStorePlusOrders } from "./mo-store-plus-order-mapper";
+import { mapMoStorePlusGoods } from "./mo-store-plus-product-mapper";
+import type { ListingStatusFilter } from "./product";
 
-/** Mo 店+。尚無 API 文件，fetchOrders 暫時回傳 mock 資料中屬於本平台的訂單。 */
-export const moStorePlusConnector: PlatformConnector = {
-  definition: {
-    code: "MO_STORE_PLUS",
-    name: "Mo 店+",
-    logo: "/images/mo-store.jpg",
-    logoObjectFit: "cover",
-    color: "#ff6b00",
-    bgcolor: "rgba(255, 107, 0, 0.08)",
-    borderColor: "rgba(255, 107, 0, 0.25)",
-    gradient: "linear-gradient(135deg, #ff6b00, #ea580c)",
-  },
-  async fetchOrders() {
-    return mockOrders.filter((o) => o.channelCode === "MO_STORE_PLUS");
-  },
+/** 商品狀態查詢條件對應 mo店+ 的 saleStatus。 */
+const saleStatusByListingStatus: Record<ListingStatusFilter, string> = {
+  ALL: "All",
+  LISTED: "StartSelling",
+  DELISTED: "StopSelling",
 };
+
+export interface MoStorePlusConnectorOptions {
+  /**
+   * 建立 mo店+ client。預設在每次查詢時才從環境變數建立，
+   * 維持「設定錯誤在查詢時才報，而非模組載入時」的行為。
+   */
+  createClient?: () => MoStorePlusClient;
+}
+
+/**
+ * Mo 店+ 直營賣場。
+ *
+ * 以工廠而非直接匯出物件的形式提供，測試才能注入假的 client，
+ * 不必動 process.env 或覆寫 globalThis.fetch。
+ */
+export function createMoStorePlusConnector(options: MoStorePlusConnectorOptions = {}): PlatformConnector {
+  const createClient = options.createClient ?? (() => MoStorePlusClient.fromEnvironment());
+
+  return {
+    definition: moStorePlusDefinition,
+    async fetchOrders(query) {
+      return mapMoStorePlusOrders(
+        await createClient().fetchOrders({
+          ...query,
+          orderStatus: query.status === "ALL" ? "All" : query.status,
+        }),
+      );
+    },
+    async fetchProducts(query) {
+      const saleStatus = saleStatusByListingStatus[query.listingStatus];
+      return mapMoStorePlusGoods(await createClient().fetchGoods({ saleStatus }));
+    },
+  };
+}
+
+export const moStorePlusConnector = createMoStorePlusConnector();

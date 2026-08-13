@@ -3,7 +3,7 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "@/app/lib/db";
 import { platforms } from "@/app/lib/schema";
-import { getAllPlatformDefinitions } from "@/app/lib/platforms/registry";
+import { getAllPlatformDefinitions } from "@/app/lib/platforms/definitions";
 import type { PlatformCode } from "@/app/lib/platforms/types";
 import type { PlatformMutationResult, PlatformStatus } from "@/app/types/platform";
 import { mergePlatformStatuses } from "@/app/utils/platforms";

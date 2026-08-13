@@ -25,6 +25,8 @@ export async function listProducts(): Promise<Product[]> {
       code: products.code,
       name: products.name,
       stock: products.stock,
+      cvs_merge_limit: products.cvsMergeLimit,
+      logistics_merge_limit: products.logisticsMergeLimit,
       created_at: products.createdAt,
     })
     .from(products)
@@ -35,11 +37,14 @@ export async function listProducts(): Promise<Product[]> {
 export async function createProduct(input: CreateProductInput): Promise<ProductMutationResult> {
   const valid = validateProductInput(input);
   if (!valid.ok) return valid;
-  const { code, name, stock } = valid;
+  const { code, name, stock, cvsMergeLimit, logisticsMergeLimit } = valid;
 
   try {
     const db = getDb();
-    await db.insert(products).values({ code, name, stock }).run();
+    await db
+      .insert(products)
+      .values({ code, name, stock, cvsMergeLimit, logisticsMergeLimit })
+      .run();
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -53,13 +58,20 @@ export async function updateProduct(input: UpdateProductInput): Promise<ProductM
 
   const valid = validateProductInput(input);
   if (!valid.ok) return valid;
-  const { code, name, stock } = valid;
+  const { code, name, stock, cvsMergeLimit, logisticsMergeLimit } = valid;
 
   try {
     const db = getDb();
     const result = await db
       .update(products)
-      .set({ code, name, stock, updatedAt: sql`datetime('now')` })
+      .set({
+        code,
+        name,
+        stock,
+        cvsMergeLimit,
+        logisticsMergeLimit,
+        updatedAt: sql`datetime('now')`,
+      })
       .where(eq(products.id, Number(input.id)))
       .run();
     if (result.meta?.changes === 0) return { ok: false, error: notFoundMessage("update") };

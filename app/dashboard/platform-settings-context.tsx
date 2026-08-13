@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { getAllPlatformDefinitions } from "@/app/lib/platforms/registry";
+import { getAllPlatformDefinitions } from "@/app/lib/platforms/definitions";
 import type { PlatformCode, PlatformDefinition } from "@/app/lib/platforms/types";
 import type { PlatformMutationResult, PlatformStatus } from "@/app/types/platform";
 import { listPlatformStatuses, setPlatformEnabled } from "./platforms-actions";

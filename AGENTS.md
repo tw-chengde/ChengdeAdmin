@@ -15,12 +15,27 @@ Per-platform integrations live in `app/lib/platforms/`: `connector.ts` and
 `types.ts` define the shared contract, `registry.ts` maps a platform code to its
 connector, and each platform gets its own module (`momo.ts`, `mo-store-plus.ts`).
 Add a new platform there rather than branching on the platform code inside views.
+Anything a view needs to vary per platform — display metadata, the order-status
+dropdown options — belongs on `PlatformDefinition`, not in a lookup table keyed
+by platform code inside the component.
+
+`definitions.ts` (display data) and `registry.ts` (connectors) are deliberately
+separate: connectors pull in the platform API clients and their credentials, so
+they must never enter the client bundle. Client components import
+`definitions.ts`; only server actions import `registry.ts`. `tests/project.test.ts`
+walks the import graph and fails if a `"use client"` module reaches `registry.ts`.
+
+Each connector is built by a factory (`createMomoConnector`,
+`createMoStorePlusConnector`) that accepts a `createClient` provider, so tests
+inject a fake client instead of setting `process.env` and overwriting
+`globalThis.fetch`. Shared plumbing lives in `config.ts` (every platform
+environment variable, and whether it is required), `platform-http.ts` (the
+POST-JSON transport and its error messages), and `mapper-utils.ts` (the
+value-coercion and grouping helpers every mapper needs).
 Documentation, OpenAPI schemas, and platform integration guides are index-mapped in [docs/AGENTS.md](./docs/AGENTS.md).
 
-
-
 `app/dashboard/(platform-aware)/` is a route group, so it does not appear in
-URLs. `tests/project.test.mjs` asserts that every `href` in
+URLs. `tests/project.test.ts` asserts that every `href` in
 `app/dashboard/nav-items.ts` resolves to a real `page.tsx`, so a new nav entry
 must ship with its route in the same change.
 
@@ -57,6 +72,8 @@ using `npm run db:migrate:remote`. Do not manually edit Drizzle snapshot or
 journal metadata.
 
 ## Coding Style & Naming Conventions
+
+All code must strictly follow Clean Code principles and SOLID design principles.
 
 Use TypeScript, React functional components, and two-space indentation. Follow
 existing formatting: double quotes, semicolons, and trailing commas where valid.

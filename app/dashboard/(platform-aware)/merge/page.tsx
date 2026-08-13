@@ -1,5 +1,5 @@
-import OrderMergeView from "@/app/dashboard/order-merge-view";
+import MergeBindingsView from "@/app/dashboard/merge-bindings-view";
 
 export default function MergePage() {
-  return <OrderMergeView />;
+  return <MergeBindingsView />;
 }

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * The complete D1 schema. Better Auth receives the raw D1 binding, but its
@@ -10,6 +10,8 @@ export const products = sqliteTable("products", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   stock: integer("stock").notNull().default(0),
+  cvsMergeLimit: integer("cvs_merge_limit").notNull().default(0),
+  logisticsMergeLimit: integer("logistics_merge_limit").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
@@ -21,6 +23,25 @@ export const platforms = sqliteTable("platforms", {
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
+
+/**
+ * 平台商品（goodsCode 層級）與本地商品的對應。
+ * (platform_code, goods_code) 唯一，代表一個平台商品最多只能綁一個本地商品；
+ * 反過來一個本地商品可被多個平台商品指向，形成多對一。
+ */
+export const productPlatformBindings = sqliteTable("product_platform_bindings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  platformCode: text("platform_code").notNull(),
+  goodsCode: text("goods_code").notNull(),
+  /** 綁定當下的平台商品名稱快照，平台商品下架後仍能辨識這筆綁定。 */
+  goodsName: text("goods_name"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+}, (table) => [
+  uniqueIndex("product_platform_bindings_platform_goods_idx").on(table.platformCode, table.goodsCode),
+  index("product_platform_bindings_product_idx").on(table.productId),
+]);
 
 export const users = sqliteTable("user", {
   id: text("id").primaryKey(),

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import type { CreateProductInput } from "@/app/types/product";
 import {
   isValidProductId,
   mapProductDbError,
@@ -7,27 +8,58 @@ import {
   validateProductInput,
 } from "@/app/utils/products";
 
+/** 只想驗證某個欄位時，其餘欄位一律帶合法值。 */
+function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput {
+  return {
+    code: "CD-1001",
+    name: "保溫瓶",
+    stock: 1,
+    cvsMergeLimit: 2,
+    logisticsMergeLimit: 6,
+    ...overrides,
+  };
+}
+
 test("validateProductInput 接受合法輸入並去除前後空白", () => {
-  const result = validateProductInput({ code: "  CD-1001 ", name: " 保溫瓶 ", stock: 5 });
+  const result = validateProductInput(input({ code: "  CD-1001 ", name: " 保溫瓶 ", stock: 5 }));
   assert.equal(result.ok, true);
-  assert.deepEqual(result, { ok: true, code: "CD-1001", name: "保溫瓶", stock: 5 });
+  assert.deepEqual(result, {
+    ok: true,
+    code: "CD-1001",
+    name: "保溫瓶",
+    stock: 5,
+    cvsMergeLimit: 2,
+    logisticsMergeLimit: 6,
+  });
 });
 
 test("validateProductInput 允許庫存為 0", () => {
-  const result = validateProductInput({ code: "CD-1001", name: "保溫瓶", stock: 0 });
+  const result = validateProductInput(input({ stock: 0 }));
   assert.equal(result.ok, true);
 });
 
+test("validateProductInput 允許併單上限為 0（代表該通路不可併單）", () => {
+  const result = validateProductInput(input({ cvsMergeLimit: 0, logisticsMergeLimit: 0 }));
+  assert.deepEqual(result, {
+    ok: true,
+    code: "CD-1001",
+    name: "保溫瓶",
+    stock: 1,
+    cvsMergeLimit: 0,
+    logisticsMergeLimit: 0,
+  });
+});
+
 test("validateProductInput 擋下空白的商品代號與名稱", () => {
-  assert.deepEqual(validateProductInput({ code: "", name: "保溫瓶", stock: 1 }), {
+  assert.deepEqual(validateProductInput(input({ code: "" })), {
     ok: false,
     error: "請輸入商品代號",
   });
-  assert.deepEqual(validateProductInput({ code: "   ", name: "保溫瓶", stock: 1 }), {
+  assert.deepEqual(validateProductInput(input({ code: "   " })), {
     ok: false,
     error: "請輸入商品代號",
   });
-  assert.deepEqual(validateProductInput({ code: "CD-1001", name: "  ", stock: 1 }), {
+  assert.deepEqual(validateProductInput(input({ name: "  " })), {
     ok: false,
     error: "請輸入商品名稱",
   });
@@ -35,14 +67,32 @@ test("validateProductInput 擋下空白的商品代號與名稱", () => {
 
 test("validateProductInput 擋下負數、小數與非數字的庫存", () => {
   const expected = { ok: false, error: "庫存必須為 0 或正整數" };
-  assert.deepEqual(validateProductInput({ code: "CD-1001", name: "保溫瓶", stock: -1 }), expected);
-  assert.deepEqual(validateProductInput({ code: "CD-1001", name: "保溫瓶", stock: 1.5 }), expected);
+  assert.deepEqual(validateProductInput(input({ stock: -1 })), expected);
+  assert.deepEqual(validateProductInput(input({ stock: 1.5 })), expected);
+  assert.deepEqual(validateProductInput(input({ stock: "abc" as unknown as number })), expected);
+  assert.deepEqual(validateProductInput(input({ stock: NaN })), expected);
+});
+
+test("validateProductInput 擋下負數、小數與非數字的超商併單上限", () => {
+  const expected = { ok: false, error: "超商併單上限必須為 0 或正整數" };
+  assert.deepEqual(validateProductInput(input({ cvsMergeLimit: -1 })), expected);
+  assert.deepEqual(validateProductInput(input({ cvsMergeLimit: 2.5 })), expected);
   assert.deepEqual(
-    validateProductInput({ code: "CD-1001", name: "保溫瓶", stock: "abc" as unknown as number }),
+    validateProductInput(input({ cvsMergeLimit: "abc" as unknown as number })),
     expected,
   );
   assert.deepEqual(
-    validateProductInput({ code: "CD-1001", name: "保溫瓶", stock: NaN }),
+    validateProductInput(input({ cvsMergeLimit: undefined as unknown as number })),
+    expected,
+  );
+});
+
+test("validateProductInput 擋下負數、小數與非數字的物流併單上限", () => {
+  const expected = { ok: false, error: "物流併單上限必須為 0 或正整數" };
+  assert.deepEqual(validateProductInput(input({ logisticsMergeLimit: -1 })), expected);
+  assert.deepEqual(validateProductInput(input({ logisticsMergeLimit: 2.5 })), expected);
+  assert.deepEqual(
+    validateProductInput(input({ logisticsMergeLimit: "abc" as unknown as number })),
     expected,
   );
 });

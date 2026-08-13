@@ -1,28 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { mergePlatformStatuses } from "@/app/utils/platforms";
-import type { PlatformDefinition } from "@/app/lib/platforms/types";
-
-const momoDef: PlatformDefinition = {
-  code: "MOMO_MAIN",
-  name: "MOMO 購物網",
-  logo: "/images/momo.png",
-  logoObjectFit: "contain",
-  color: "#ec008c",
-  bgcolor: "rgba(236, 0, 140, 0.08)",
-  borderColor: "rgba(236, 0, 140, 0.25)",
-  gradient: "linear-gradient(135deg, #ec008c, #d80073)",
-};
-const moStorePlusDef: PlatformDefinition = {
-  code: "MO_STORE_PLUS",
-  name: "Mo 店+",
-  logo: "/images/mo-store.jpg",
-  logoObjectFit: "cover",
-  color: "#ff6b00",
-  bgcolor: "rgba(255, 107, 0, 0.08)",
-  borderColor: "rgba(255, 107, 0, 0.25)",
-  gradient: "linear-gradient(135deg, #ff6b00, #ea580c)",
-};
+// 直接用正式的平台定義，避免測試裡再抄一份會各自漂移的副本。
+import { momoDefinition as momoDef, moStorePlusDefinition as moStorePlusDef } from "@/app/lib/platforms/definitions";
 
 test("mergePlatformStatuses 沒有對應資料列時預設為啟用", () => {
   const result = mergePlatformStatuses([momoDef], []);
