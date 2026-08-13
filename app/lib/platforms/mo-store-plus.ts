@@ -36,6 +36,8 @@ export function createMoStorePlusConnector(options: MoStorePlusConnectorOptions 
         await createClient().fetchOrders({
           ...query,
           orderStatus: query.status === "ALL" ? "All" : query.status,
+          deliveryType: query.deliveryType ?? "All",
+          storeDeliveryType: query.storeDeliveryType ?? "All",
         }),
       );
     },

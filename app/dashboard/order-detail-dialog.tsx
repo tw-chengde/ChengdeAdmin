@@ -62,8 +62,6 @@ function CopyableValue({ value, copied, onCopy }: { value: string; copied: boole
 export default function OrderDetailDialog({ order, onClose, onCopy, copied }: OrderDetailDialogProps) {
   if (!order) return null;
 
-  const showChannelOrderNo = order.channelOrderNo && order.channelOrderNo !== order.orderNo;
-
   return (
     <Dialog
       open
@@ -93,11 +91,6 @@ export default function OrderDetailDialog({ order, onClose, onCopy, copied }: Or
               <Field label="訂單編號：">
                 <CopyableValue value={order.orderNo} copied={copied} onCopy={onCopy} />
               </Field>
-              {showChannelOrderNo && (
-                <Field label="平台訂單號：">
-                  <CopyableValue value={order.channelOrderNo} copied={copied} onCopy={onCopy} />
-                </Field>
-              )}
               <Field label="下單時間：">
                 <Typography sx={{ fontSize: 13 }}>{order.createdAt}</Typography>
               </Field>

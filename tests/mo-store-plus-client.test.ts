@@ -49,7 +49,7 @@ test("mo店+ sends the documented OrderQuery POST payload and extracts listOrder
   assert.equal(mapMoStorePlusOrders(orders)[0].totalAmount, 99);
 });
 
-test("mo店+ 將選取的訂單狀態傳入 OrderQuery", async () => {
+test("mo店+ 將選取的訂單狀態與配送類型傳入 OrderQuery", async () => {
   let body: Record<string, unknown> | undefined;
   const client = new MoStorePlusClient({
     fetchImpl: async (_input, init) => {
@@ -58,9 +58,11 @@ test("mo店+ 將選取的訂單狀態傳入 OrderQuery", async () => {
     },
   });
 
-  await client.fetchOrders({ orderStatus: "Shipping" });
+  await client.fetchOrders({ orderStatus: "Shipping", deliveryType: "Store", storeDeliveryType: "1" });
 
   assert.equal(body?.orderStatus, "Shipping");
+  assert.equal(body?.deliveryType, "Store");
+  assert.equal(body?.storeDeliveryType, "1");
 });
 
 test("mo店+ 商品查詢逐頁抓到 totalGoods 為止，並彙總單品的庫存與售價", async () => {

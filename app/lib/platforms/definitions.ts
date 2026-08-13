@@ -52,6 +52,20 @@ export const moStorePlusDefinition: PlatformDefinition = {
     { value: "ReturnCancelled", label: "取消退貨" },
     { value: "RecycleConfirmed", label: "回收確認" },
   ],
+  deliveryTypeOptions: [
+    { value: "All", label: "全部配送方式" },
+    { value: "Home", label: "宅配" },
+    { value: "Store", label: "超取" },
+    { value: "ThirdParty", label: "第三方物流" },
+  ],
+  storeDeliveryTypeOptions: [
+    { value: "All", label: "全部超商" },
+    { value: "1", label: "7-ELEVEN" },
+    { value: "2", label: "全家便利商店" },
+    { value: "3", label: "萊爾富" },
+    { value: "4", label: "OK超商" },
+  ],
+  storeDeliveryTypeForDeliveryTypes: ["Store"],
 };
 
 /** 所有已知平台的定義。順序即畫面上分頁預設的排列順序。 */

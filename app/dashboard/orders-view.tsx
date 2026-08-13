@@ -53,6 +53,8 @@ export default function OrdersView() {
   const [keyword, setKeyword] = useState("");
   const [dateRange, setDateRange] = useState(getDefaultDateRange);
   const [orderStatus, setOrderStatus] = useState("ALL");
+  const [deliveryType, setDeliveryType] = useState("All");
+  const [storeDeliveryType, setStoreDeliveryType] = useState("All");
   const runLatest = useLatestRequest();
 
   const {
@@ -69,16 +71,39 @@ export default function OrdersView() {
 
   const pagination = usePagination(filteredOrders);
 
+  const activePlatform = enabledPlatforms.find((platform) => platform.code === channelTab);
+  const availableOrderStatusOptions = activePlatform?.orderStatusOptions ?? [];
+  const availableDeliveryTypeOptions = activePlatform?.deliveryTypeOptions ?? [];
+  const availableStoreDeliveryTypeOptions = activePlatform?.storeDeliveryTypeOptions ?? [];
+  const storeDeliveryTypeForDeliveryTypes = activePlatform?.storeDeliveryTypeForDeliveryTypes ?? [];
+
+  const selectedOrderStatus = availableOrderStatusOptions.some((option) => option.value === orderStatus)
+    ? orderStatus
+    : (availableOrderStatusOptions[0]?.value ?? "ALL");
+
+  const selectedDeliveryType = availableDeliveryTypeOptions.some((option) => option.value === deliveryType)
+    ? deliveryType
+    : (availableDeliveryTypeOptions[0]?.value ?? "All");
+
+  const supportsStoreDeliveryType = storeDeliveryTypeForDeliveryTypes.includes(selectedDeliveryType);
+  const selectedStoreDeliveryType =
+    supportsStoreDeliveryType && availableStoreDeliveryTypeOptions.some((option) => option.value === storeDeliveryType)
+      ? storeDeliveryType
+      : "All";
+
   const handleSearch = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!channelTab) return;
     const query = { ...dateRange };
-    setSearchQuery(keyword);
     pagination.resetPage();
     setHasSearched(true);
     setLoading(true);
     setLoadError(null);
-    runLatest(() => loadOrdersPageData(query, channelTab, selectedOrderStatus), {
+    runLatest(() => loadOrdersPageData(query, channelTab, {
+      status: selectedOrderStatus,
+      deliveryType: selectedDeliveryType,
+      storeDeliveryType: selectedStoreDeliveryType,
+    }), {
       onSuccess: setOrders,
       onError: (error) => setLoadError(errorMessage(error, "Failed to load orders")),
       onSettled: () => setLoading(false),
@@ -100,14 +125,7 @@ export default function OrdersView() {
     setChannelTab(fallbackPlatform.code);
   }, [channelTab, enabledPlatforms, setChannelTab]);
 
-  // 所有平台差異都由平台定義提供，這支 view 不認得任何平台代碼。
-  const availableOrderStatusOptions = enabledPlatforms.find((platform) => platform.code === channelTab)?.orderStatusOptions ?? [];
-
-  const selectedOrderStatus = availableOrderStatusOptions.some((option) => option.value === orderStatus)
-    ? orderStatus
-    : (availableOrderStatusOptions[0]?.value ?? "ALL");
-
-  const selectedChannelName = enabledPlatforms.find((p) => p.code === channelTab)?.name ?? "";
+  const selectedChannelName = activePlatform?.name ?? "";
 
   return (
     <Box>
@@ -140,6 +158,8 @@ export default function OrdersView() {
             const platform = enabledPlatforms.find((item) => item.code === channelCode);
             setChannelTab(channelCode);
             setOrderStatus(platform?.orderStatusOptions[0]?.value ?? "ALL");
+            setDeliveryType(platform?.deliveryTypeOptions?.[0]?.value ?? "All");
+            setStoreDeliveryType(platform?.storeDeliveryTypeOptions?.[0]?.value ?? "All");
             pagination.resetPage();
           }}
           sx={{
@@ -216,31 +236,16 @@ export default function OrdersView() {
         <Stack
           component="form"
           onSubmit={handleSearch}
-          direction={{ xs: "column", md: "row" }}
+          direction={{ xs: "column", lg: "row" }}
           spacing={2}
           sx={{
             justifyContent: "space-between",
-            alignItems: { md: "center" },
+            alignItems: { lg: "center" },
             p: 2.5,
             borderBottom: "1px solid #eaecf0",
           }}
         >
-          <FormControl size="small" sx={{ minWidth: { xs: "100%", md: 210 } }}>
-            <InputLabel id="order-status-label">訂單狀態</InputLabel>
-            <Select
-              labelId="order-status-label"
-              label="訂單狀態"
-              value={availableOrderStatusOptions.length ? selectedOrderStatus : ""}
-              disabled={availableOrderStatusOptions.length === 0}
-              onChange={(event) => { setOrderStatus(event.target.value); pagination.resetPage(); }}
-            >
-              {availableOrderStatusOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2} sx={{ width: { xs: "100%", md: "auto" } }}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ flexWrap: "wrap", width: { xs: "100%", lg: "auto" } }}>
             <TextField
               label="開始日期"
               type="date"
@@ -266,11 +271,76 @@ export default function OrdersView() {
               }}
               sx={{ width: { xs: "100%", sm: 150 } }}
             />
+
+            <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 160 } }}>
+              <InputLabel id="order-status-label">訂單狀態</InputLabel>
+              <Select
+                labelId="order-status-label"
+                label="訂單狀態"
+                value={availableOrderStatusOptions.length ? selectedOrderStatus : ""}
+                disabled={availableOrderStatusOptions.length === 0}
+                onChange={(event) => { setOrderStatus(event.target.value); pagination.resetPage(); }}
+              >
+                {availableOrderStatusOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {availableDeliveryTypeOptions.length > 0 && (
+              <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 150 } }}>
+                <InputLabel id="delivery-type-label">配送類型</InputLabel>
+                <Select
+                  labelId="delivery-type-label"
+                  label="配送類型"
+                  value={selectedDeliveryType}
+                  onChange={(event) => {
+                    const nextDeliveryType = event.target.value;
+                    setDeliveryType(nextDeliveryType);
+                    if (!storeDeliveryTypeForDeliveryTypes.includes(nextDeliveryType)) {
+                      setStoreDeliveryType("All");
+                    }
+                    pagination.resetPage();
+                  }}
+                >
+                  {availableDeliveryTypeOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+
+            {availableStoreDeliveryTypeOptions.length > 0 && supportsStoreDeliveryType && (
+              <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 150 } }}>
+                <InputLabel id="store-delivery-type-label">超取分類</InputLabel>
+                <Select
+                  labelId="store-delivery-type-label"
+                  label="超取分類"
+                  value={selectedStoreDeliveryType}
+                  onChange={(event) => { setStoreDeliveryType(event.target.value); pagination.resetPage(); }}
+                >
+                  {availableStoreDeliveryTypeOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+          </Stack>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2} sx={{ width: { xs: "100%", md: "auto" } }}>
             <TextField
               size="small"
               placeholder="搜尋訂單編號 / 買家 / 商品"
               value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              onChange={(event) => {
+                const nextKeyword = event.target.value;
+                setKeyword(nextKeyword);
+                setSearchQuery(nextKeyword);
+                pagination.resetPage();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.preventDefault();
+              }}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -287,7 +357,7 @@ export default function OrdersView() {
               }}
             />
             <Button type="submit" variant="contained" startIcon={<SearchRounded />} sx={{ px: 2.5, whiteSpace: "nowrap" }}>
-              搜尋
+              載入訂單
             </Button>
           </Stack>
         </Stack>
@@ -352,11 +422,6 @@ export default function OrdersView() {
 
                       <TableCell>
                         <Typography sx={{ fontWeight: 750, fontSize: 13.5, color: "#1e293b" }}>{order.orderNo}</Typography>
-                        {order.channelOrderNo && order.channelOrderNo !== order.orderNo && (
-                          <Typography sx={{ fontSize: 11, color: "#64748b", fontFamily: "monospace" }}>
-                            {order.channelOrderNo}
-                          </Typography>
-                        )}
                       </TableCell>
 
                       <TableCell sx={{ maxWidth: 260 }}>

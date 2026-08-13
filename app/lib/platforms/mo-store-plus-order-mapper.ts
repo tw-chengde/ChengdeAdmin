@@ -5,12 +5,23 @@ import type { MoStorePlusOrderRecord } from "./mo-store-plus-client";
 /**
  * mo店+ 的訂單狀態對應到統一的訂單狀態。
  *
- * 鍵是 OrderQuery 規格書上 orderStatus 的值（回應的 status / itemStatus 使用同一組詞彙）。
+ * 訂單查詢的 `orderStatus` 是英文篩選條件，但實際回應的 `itemStatus` 是中文狀態文字。
+ * 因此這份表以回應值為主；英文條件值保留為相容的 fallback，避免日後 API 回傳格式改變時
+ * 讓既有訂單全數落入「其他」。
  * 平台的狀態比畫面上的分類細，多個平台狀態會收斂到同一個統一狀態：
  * 「未出貨」與「已印單」都還沒交運，因此都算待發貨；「未回收」與「回收確認」屬於退貨流程；
  * 「配送異常」仍在配送途中，只是需要人工處理，故歸為配送中。
  */
 const statusByMoStorePlusStatus: Record<string, OrderStatus> = {
+  // OrderQuery 實際回傳的 listItem[].itemStatus。
+  "訂單接獲(未付款)": "待付款",
+  "出貨通知(已付款)": "待發貨",
+  "出貨確認": "配送中",
+  "配送結束": "已完成",
+  "回收確認": "退貨申請",
+  "客戶取消": "已取消",
+
+  // OrderQuery 的 orderStatus 篩選值；目前不是實際回傳的 itemStatus。
   Unpaid: "待付款",
   NotShipped: "待發貨",
   Printed: "待發貨",
@@ -57,7 +68,6 @@ export function mapMoStorePlusOrders(records: MoStorePlusOrderRecord[]): OrderIt
       channel: "Mo 店+",
       channelCode: "MO_STORE_PLUS",
       orderNo,
-      channelOrderNo: orderNo,
       customerName: String(record.customerName ?? record.customer_name ?? ""),
       address,
       items: orderItems,

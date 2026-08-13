@@ -9,7 +9,11 @@ const loadOrdersPageData = vi.fn();
 const listPlatformStatuses = vi.fn();
 
 vi.mock("@/app/dashboard/orders-actions", () => ({
-  loadOrdersPageData: (dateRange: { startDate: string; endDate: string }, channelFilter?: string, status?: string) => loadOrdersPageData(dateRange, channelFilter, status),
+  loadOrdersPageData: (
+    dateRange: { startDate: string; endDate: string },
+    channelFilter?: string,
+    filters?: { status?: string; deliveryType?: string; storeDeliveryType?: string },
+  ) => loadOrdersPageData(dateRange, channelFilter, filters),
 }));
 
 vi.mock("@/app/dashboard/platforms-actions", () => ({
@@ -56,10 +60,28 @@ test("does not request orders until search is submitted", async () => {
   await renderOrders();
   assert.equal(loadOrdersPageData.mock.calls.length, 0);
 });
+
+test("keyword search filters loaded orders without requesting the API again", async () => {
+  await renderOrders();
+
+  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+  assert.ok(searchButton);
+  fireEvent.click(searchButton);
+  await screen.findByText(mockOrders[0].orderNo);
+  assert.equal(loadOrdersPageData.mock.calls.length, 1);
+
+  fireEvent.change(screen.getByPlaceholderText("搜尋訂單編號 / 買家 / 商品"), {
+    target: { value: mockOrders[0].orderNo },
+  });
+
+  assert.ok(screen.getByText(mockOrders[0].orderNo));
+  assert.equal(loadOrdersPageData.mock.calls.length, 1);
+});
+
 test("marks a MOMO shipping store-pickup order with its convenience-store brand", async () => {
   loadOrdersPageData.mockResolvedValue([{
     ...mockOrders[2],
-    pickupStore: { brand: "7-ELEVEN", name: "\u524d\u6e2f" },
+    pickupStore: { brand: "7-ELEVEN", name: "前港" },
   }]);
   await renderOrders();
 
@@ -71,7 +93,7 @@ test("marks a MOMO shipping store-pickup order with its convenience-store brand"
   assert.ok(searchButton);
   fireEvent.click(searchButton);
 
-  assert.ok(await screen.findByText("\u8d85\u5546\uff1a7-ELEVEN"));
+  assert.ok(await screen.findByText("超商：7-ELEVEN"));
 });
 
 test("shows an error after a failed search", async () => {
@@ -97,7 +119,7 @@ test("搜尋列預設近七天，且結束日期最多為開始日起 30 天", a
   assert.equal((end.getTime() - start.getTime()) / 86_400_000, 6);
   assert.equal(endDate.min, startDate.value);
   assert.equal(endDate.max, `${maxEnd.getFullYear()}-${String(maxEnd.getMonth() + 1).padStart(2, "0")}-${String(maxEnd.getDate()).padStart(2, "0")}`);
-  assert.ok(screen.getByRole("button", { name: "搜尋" }));
+  assert.ok(screen.getByRole("button", { name: "載入訂單" }));
 });
 
 test("date searches reload orders with the selected range", async () => {
@@ -134,7 +156,71 @@ test("狀態改為平台對應的下拉選單，並把 Mo 店+ 原生值傳入�
 
   await waitFor(() => {
     assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MO_STORE_PLUS");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2], "Shipping");
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.status, "Shipping");
+  });
+});
+
+test("Mo 店+ 切換配送類型與超取分類，並將選取值傳入 loadOrdersPageData", async () => {
+  await renderOrders();
+
+  fireEvent.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
+
+  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
+  fireEvent.click(await screen.findByRole("option", { name: "超取" }));
+
+  fireEvent.mouseDown(screen.getByLabelText("超取分類"));
+  fireEvent.click(await screen.findByRole("option", { name: "7-ELEVEN" }));
+
+  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+  assert.ok(searchButton);
+  fireEvent.click(searchButton);
+
+  await waitFor(() => {
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MO_STORE_PLUS");
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.deliveryType, "Store");
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.storeDeliveryType, "1");
+  });
+});
+
+test("Mo 店+ 配送類型選取宅配時，超取分類下拉選單會隱藏並帶入全部", async () => {
+  await renderOrders();
+
+  fireEvent.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
+
+  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
+  fireEvent.click(await screen.findByRole("option", { name: "宅配" }));
+
+  assert.equal(screen.queryByLabelText("超取分類"), null);
+
+  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+  assert.ok(searchButton);
+  fireEvent.click(searchButton);
+
+  await waitFor(() => {
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MO_STORE_PLUS");
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.deliveryType, "Home");
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.storeDeliveryType, "All");
+  });
+});
+
+test("Mo 店+ 配送類型可選取第三方物流並傳入 ThirdParty", async () => {
+  await renderOrders();
+
+  fireEvent.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
+
+  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
+  fireEvent.click(await screen.findByRole("option", { name: "第三方物流" }));
+
+  assert.equal(screen.queryByLabelText("超取分類"), null);
+
+  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+  assert.ok(searchButton);
+  fireEvent.click(searchButton);
+
+  await waitFor(() => {
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MO_STORE_PLUS");
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.deliveryType, "ThirdParty");
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.storeDeliveryType, "All");
   });
 });
 
@@ -151,7 +237,7 @@ test("MOMO 購物網狀態下拉選單可選擇出貨中", async () => {
 
   await waitFor(() => {
     assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MOMO_MAIN");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2], "SHIPPING");
+    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.status, "SHIPPING");
   });
 });
 
@@ -179,8 +265,7 @@ test("點擊詳情按鈕可開啟訂單詳細內容彈窗", async () => {
   assert.ok(await screen.findByText(/訂單詳細內容/));
   assert.ok(screen.getByText("訂購商品清單"));
 });
-// 迴歸測試：平台可能回傳沒有任何品項的訂單（例如整張單都已取消）。
-// 過去這裡直接存取 order.items[0].name，一筆這樣的訂單就會讓整張表格崩潰。
+
 test("沒有商品明細的訂單不會讓整張表格崩潰", async () => {
   loadOrdersPageData.mockResolvedValue([{ ...mockOrders[0], items: [] }]);
   await renderOrders();

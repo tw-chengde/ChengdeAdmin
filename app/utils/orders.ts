@@ -88,7 +88,6 @@ function matchesKeyword(order: OrderItem, keyword: string): boolean {
 
   return (
     order.orderNo.toLowerCase().includes(needle) ||
-    order.channelOrderNo.toLowerCase().includes(needle) ||
     order.customerName.toLowerCase().includes(needle) ||
     order.items.some((item) => item.name.toLowerCase().includes(needle))
   );

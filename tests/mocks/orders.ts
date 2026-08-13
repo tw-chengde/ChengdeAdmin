@@ -6,7 +6,6 @@ export const mockOrders: OrderItem[] = [
     channel: "MOMO 購物網",
     channelCode: "MOMO_MAIN",
     orderNo: "26080100008912-001-001-001",
-    channelOrderNo: "26080100008912-001-001-001",
     customerName: "張雅婷",
     address: "台北市信義區忠孝東路五段 68 號 12 樓",
     items: [
@@ -25,7 +24,6 @@ export const mockOrders: OrderItem[] = [
     channel: "Mo 店+",
     channelCode: "MO_STORE_PLUS",
     orderNo: "26080100052951",
-    channelOrderNo: "26080100052951",
     customerName: "林尚恩",
     address: "新北市板橋區縣民大道二段 7 號",
     items: [
@@ -42,7 +40,6 @@ export const mockOrders: OrderItem[] = [
     channel: "MOMO 購物網",
     channelCode: "MOMO_MAIN",
     orderNo: "26080100008911-001-001-001",
-    channelOrderNo: "26080100008911-001-001-001",
     customerName: "許嘉玲",
     address: "台中市西屯區台灣大道三段 99 號",
     items: [
@@ -59,7 +56,6 @@ export const mockOrders: OrderItem[] = [
     channel: "Mo 店+",
     channelCode: "MO_STORE_PLUS",
     orderNo: "26080100052949",
-    channelOrderNo: "26080100052949",
     customerName: "陳建宏",
     address: "高雄市左營區博愛二路 777 號",
     items: [
@@ -77,7 +73,6 @@ export const mockOrders: OrderItem[] = [
     channel: "MOMO 購物網",
     channelCode: "MOMO_MAIN",
     orderNo: "26073100008905-001-001-001",
-    channelOrderNo: "26073100008905-001-001-001",
     customerName: "黃怡真",
     address: "桃園市中壢區中正路 100 號",
     items: [
@@ -94,7 +89,6 @@ export const mockOrders: OrderItem[] = [
     channel: "Mo 店+",
     channelCode: "MO_STORE_PLUS",
     orderNo: "26073100052850",
-    channelOrderNo: "26073100052850",
     customerName: "蔡明哲",
     address: "台南市東區中華東路三段 1 號",
     items: [
@@ -111,7 +105,6 @@ export const mockOrders: OrderItem[] = [
     channel: "MOMO 購物網",
     channelCode: "MOMO_MAIN",
     orderNo: "26073100008390-001-001-001",
-    channelOrderNo: "26073100008390-001-001-001",
     customerName: "郭佩珊",
     address: "新竹市東區光復路二段 101 號",
     items: [

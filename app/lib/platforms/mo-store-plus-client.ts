@@ -59,6 +59,10 @@ export interface MoStorePlusOrderQueryOptions {
   maxPerPage?: number;
   /** OrderQuery 的 orderStatus；All=全部。 */
   orderStatus?: string;
+  /** OrderQuery 的 deliveryType；All=全部、Home=宅配、Store=超取、ThirdParty=第三方物流。 */
+  deliveryType?: string;
+  /** OrderQuery 的 storeDeliveryType；All=全部、1=7-ELEVEN、2=全家、3=萊爾富、4=OK。 */
+  storeDeliveryType?: string;
 }
 export interface MoStorePlusGoodsdtRecord {
   goodsdtCode?: string;
@@ -159,8 +163,8 @@ export class MoStorePlusClient {
         queryDateType: "OrderDate",
         fromDate: taipeiTodayDateString(from),
         toDate: taipeiTodayDateString(to),
-        deliveryType: "All",
-        storeDeliveryType: "All",
+        deliveryType: options.deliveryType ?? "All",
+        storeDeliveryType: options.storeDeliveryType ?? "All",
         orderStatus: options.orderStatus ?? "All",
         goodsNo: "",
         goodsName: "",

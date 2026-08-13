@@ -8,12 +8,23 @@ import { listEnabledPlatformCodes } from "./platforms-actions";
 
 export type { OrderDateRange };
 
+export interface OrderPageFilters {
+  status?: string;
+  deliveryType?: string;
+  storeDeliveryType?: string;
+}
+
 /** Loads orders for one enabled platform only. */
 export async function loadOrdersPageData(
   dateRange: OrderDateRange,
   channelCode: PlatformCode,
-  status = "ALL",
+  filters: OrderPageFilters = {},
 ): Promise<OrderItem[]> {
+  const {
+    status = "ALL",
+    deliveryType = "All",
+    storeDeliveryType = "All",
+  } = filters;
   const { from, to } = resolveOrderDateRange(dateRange);
   const enabledCodes = await listEnabledPlatformCodes();
 
@@ -22,5 +33,11 @@ export async function loadOrdersPageData(
   const connector = getConnector(channelCode);
   if (!connector) return [];
 
-  return connector.fetchOrders({ from, to, status });
+  return connector.fetchOrders({
+    from,
+    to,
+    status,
+    deliveryType,
+    storeDeliveryType,
+  });
 }

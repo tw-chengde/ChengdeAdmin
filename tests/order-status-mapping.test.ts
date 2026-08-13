@@ -39,7 +39,16 @@ test("momo 出貨中訂單對應到配送中，不計入待處理出貨", () => 
   assert.equal(orderStats(orders, "MOMO_MAIN").pendingShipment, 0);
 });
 
-test("mo店+ 的平台狀態對應到統一的訂單狀態", () => {
+test("mo店+ 實際回傳的品項狀態對應到統一的訂單狀態", () => {
+  assert.equal(toMoStorePlusOrderStatus("訂單接獲(未付款)"), "待付款");
+  assert.equal(toMoStorePlusOrderStatus("出貨通知(已付款)"), "待發貨");
+  assert.equal(toMoStorePlusOrderStatus("出貨確認"), "配送中");
+  assert.equal(toMoStorePlusOrderStatus("配送結束"), "已完成");
+  assert.equal(toMoStorePlusOrderStatus("回收確認"), "退貨申請");
+  assert.equal(toMoStorePlusOrderStatus("客戶取消"), "已取消");
+});
+
+test("mo店+ 保留英文查詢條件值的相容 mapping", () => {
   assert.equal(toMoStorePlusOrderStatus("Unpaid"), "待付款");
   assert.equal(toMoStorePlusOrderStatus("NotShipped"), "待發貨");
   assert.equal(toMoStorePlusOrderStatus("Printed"), "待發貨");

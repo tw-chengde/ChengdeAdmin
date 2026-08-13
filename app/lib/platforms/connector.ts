@@ -7,6 +7,10 @@ export interface PlatformOrderQuery {
   to: Date;
   /** 平台原生的訂單狀態值；未指定時由各平台查詢全部可用狀態。 */
   status?: string;
+  /** 配送類型（例如 Mo 店+ 的 Home / Store）。 */
+  deliveryType?: string;
+  /** 超取分類（例如 Mo 店+ 的 1 / 2）。 */
+  storeDeliveryType?: string;
 }
 
 /** 單一電商平台的訂單擷取邏輯（Strategy）。新增平台時實作一個新的 connector 並註冊進 registry.ts。 */

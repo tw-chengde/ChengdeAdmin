@@ -14,7 +14,6 @@ export interface OrderItem {
   channel: string;
   channelCode: PlatformCode;
   orderNo: string;
-  channelOrderNo: string;
   customerName: string;
   address: string;
   items: { name: string; spec: string; qty: number; price: number }[];
