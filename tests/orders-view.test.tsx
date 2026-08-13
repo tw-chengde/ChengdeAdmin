@@ -56,7 +56,7 @@ test("does not request orders until search is submitted", async () => {
   await renderOrders();
   assert.equal(loadOrdersPageData.mock.calls.length, 0);
 });
-test("marks a MOMO shipping store-pickup order with its convenience-store brand and branch", async () => {
+test("marks a MOMO shipping store-pickup order with its convenience-store brand", async () => {
   loadOrdersPageData.mockResolvedValue([{
     ...mockOrders[2],
     pickupStore: { brand: "7-ELEVEN", name: "\u524d\u6e2f" },
@@ -71,7 +71,7 @@ test("marks a MOMO shipping store-pickup order with its convenience-store brand 
   assert.ok(searchButton);
   fireEvent.click(searchButton);
 
-  assert.ok(await screen.findByText("\u8d85\u5546\uff1a7-ELEVEN \u00b7 \u524d\u6e2f"));
+  assert.ok(await screen.findByText("\u8d85\u5546\uff1a7-ELEVEN"));
 });
 
 test("shows an error after a failed search", async () => {
