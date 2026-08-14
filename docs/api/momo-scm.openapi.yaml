@@ -2391,12 +2391,33 @@ components:
           properties:
             saveMsgOkCnt: { type: integer, description: 儲存訊息成功筆數。 }
             saveMsgFailCnt: { type: integer, description: 儲存訊息失敗筆數。 }
-            saveMsgFail: { type: array, description: 儲存訊息失敗列表。 , items: { type: object } }
+            saveMsgFail:
+              type: array
+              description: 儲存訊息失敗列表。
+              items:
+                type: object
+                properties:
+                  key: { type: string, description: 項目鍵值或編號 }
+                  msg: { type: string, description: 失敗訊息 }
             addCounselOkCnt: { type: integer, description: 建立商談成功筆數。 }
             addCounselFailCnt: { type: integer, description: 建立商談失敗筆數。 }
-            addCounselFail: { type: array, description: 建立商談失敗列表。 , items: { type: object } }
+            addCounselFail:
+              type: array
+              description: 建立商談失敗列表。
+              items:
+                type: object
+                properties:
+                  key: { type: string, description: 項目鍵值或編號 }
+                  msg: { type: string, description: 失敗訊息 }
             addCounselFileFailCnt: { type: integer, description: 檔案上傳失敗筆數。 }
-            addCounselFileFail: { type: array, description: 檔案上傳失敗列表。 , items: { type: object } }
+            addCounselFileFail:
+              type: array
+              description: 檔案上傳失敗列表。
+              items:
+                type: object
+                properties:
+                  fileName: { type: string, description: 檔案名稱 }
+                  msg: { type: string, description: 失敗訊息 }
     F1104StockQueryRequestDetailed:
       type: object
       required: [loginInfo, queryMonth]
@@ -3180,37 +3201,248 @@ components:
                     items:
                       type: object
                       required: [GOODSDT_CODE, GOODSDT_INFO, ENTP_GOODS_NO, INTERNATIONAL_NO, LENGTH, WIDTH, HEIGHT, WEIGHT, LIVE_STREAMING_YN]
-    GoodsServletRequest:
+                      properties:
+                        GOODSDT_CODE: { type: string, description: 單品編號 }
+                        GOODSDT_INFO: { type: string, description: 單品規格資訊 }
+                        ENTP_GOODS_NO: { type: string, description: 廠商商品編號 }
+                        INTERNATIONAL_NO: { type: string, description: 國際條碼 }
+                        LENGTH: { type: number, description: 長度 }
+                        WIDTH: { type: number, description: 寬度 }
+                        HEIGHT: { type: number, description: 高度 }
+                        WEIGHT: { type: number, description: 重量 }
+                        LIVE_STREAMING_YN: { type: string, description: 直播標記 (Y/N) }
+    GoodsReportItem:
+      title: 商品提報項目
       type: object
-      required: [doAction, loginInfo]
+      required: [goodsName, entpGoodsNo, buyPrice, salePrice]
       properties:
-        doAction:
-          type: string
-          enum: [tempReportGoods, verifyReportGoods, queryGoodsBasicData, changeGoodsQty, queryOnOffShelf, applyOnOffShelf, queryGoodsList, queryGoodInfo, queryGoodSchedule, queryGoodsBasicCode, queryPriceHistory, queryDetailPriceHistory]
-          description: 請填入要執行的商品作業代碼。每個代碼的實際行為由下列分支名稱表示。
-          oneOf:
-            - { const: tempReportGoods, title: 商品提報－暫存 }
-            - { const: verifyReportGoods, title: 商品提報－送審 }
-            - { const: queryGoodsBasicData, title: 商品簡易查詢 }
-            - { const: changeGoodsQty, title: 商品加／減量申請 }
-            - { const: queryOnOffShelf, title: 商品上下架查詢 }
-            - { const: applyOnOffShelf, title: 商品上下架申請（進行中商品申請下架；暫時中斷商品申請上架） }
-            - { const: queryGoodsList, title: 商品查詢 }
-            - { const: queryGoodInfo, title: 商品內容查詢 }
-            - { const: queryGoodSchedule, title: 商品提報進度查詢 }
-            - { const: queryGoodsBasicCode, title: 編碼對照表查詢 }
-            - { const: queryPriceHistory, title: 商品歷史價格查詢 }
-            - { const: queryDetailPriceHistory, title: 商品歷史價格明細查詢 }
+        goodsCode: { type: string, description: momo 商品編號 }
+        goodsName: { type: string, description: 商品名稱 }
+        entpGoodsNo: { type: string, description: 原廠商品編號 }
+        cateCode: { type: string, description: 分類編號 }
+        brandCode: { type: string, description: 品牌編號 }
+        buyPrice: { type: number, description: 進價 (含稅) }
+        salePrice: { type: number, description: 售價 (含稅) }
+        describeNote: { type: string, description: 贈品 / 備註說明 }
+        media: { type: string, description: 通路媒體 }
+        goodsDtList:
+          type: array
+          description: 單品規格明細清單
+          items:
+            type: object
+            required: [goodsdtCode, goodsdtInfo, entpGoodsNo]
+            properties:
+              goodsdtCode: { type: string, description: 單品編號 }
+              goodsdtInfo: { type: string, description: 單品詳細資訊 }
+              entpGoodsNo: { type: string, description: 原廠單品編號 }
+              internationalNo: { type: string, description: 條碼/國際條碼 }
+              length: { type: number, description: 長度 }
+              width: { type: number, description: 寬度 }
+              height: { type: number, description: 高度 }
+              weight: { type: number, description: 重量 }
+              liveStreamingYn: { type: string, description: 直播標記 (Y/N) }
+    GoodsServletRequest:
+      description: 依 doAction 區分具體的商品作業請求規格。
+      oneOf:
+        - { $ref: '#/components/schemas/GoodsTempReportRequest' }
+        - { $ref: '#/components/schemas/GoodsVerifyReportRequest' }
+        - { $ref: '#/components/schemas/GoodsBasicDataRequest' }
+        - { $ref: '#/components/schemas/GoodsChangeQtyRequest' }
+        - { $ref: '#/components/schemas/GoodsOnOffShelfQueryRequest' }
+        - { $ref: '#/components/schemas/GoodsOnOffShelfApplyRequest' }
+        - { $ref: '#/components/schemas/GoodsListQueryRequest' }
+        - { $ref: '#/components/schemas/GoodsInfoQueryRequest' }
+        - { $ref: '#/components/schemas/GoodsScheduleQueryRequest' }
+        - { $ref: '#/components/schemas/GoodsBasicCodeQueryRequest' }
+        - { $ref: '#/components/schemas/GoodsPriceHistoryQueryRequest' }
+        - { $ref: '#/components/schemas/GoodsDetailPriceHistoryQueryRequest' }
+      discriminator:
+        propertyName: doAction
+        mapping:
+          tempReportGoods: '#/components/schemas/GoodsTempReportRequest'
+          verifyReportGoods: '#/components/schemas/GoodsVerifyReportRequest'
+          queryGoodsBasicData: '#/components/schemas/GoodsBasicDataRequest'
+          changeGoodsQty: '#/components/schemas/GoodsChangeQtyRequest'
+          queryOnOffShelf: '#/components/schemas/GoodsOnOffShelfQueryRequest'
+          applyOnOffShelf: '#/components/schemas/GoodsOnOffShelfApplyRequest'
+          queryGoodsList: '#/components/schemas/GoodsListQueryRequest'
+          queryGoodInfo: '#/components/schemas/GoodsInfoQueryRequest'
+          queryGoodSchedule: '#/components/schemas/GoodsScheduleQueryRequest'
+          queryGoodsBasicCode: '#/components/schemas/GoodsBasicCodeQueryRequest'
+          queryPriceHistory: '#/components/schemas/GoodsPriceHistoryQueryRequest'
+          queryDetailPriceHistory: '#/components/schemas/GoodsDetailPriceHistoryQueryRequest'
+    GoodsTempReportRequest:
+      title: tempReportGoods：商品提報－暫存請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: tempReportGoods }
         loginInfo: { $ref: '#/components/schemas/LoginInfo' }
-        zipFileData: { type: string, format: byte, description: 商品提報暫存／送審時必填；含圖檔 ZIP 檔的 Base64 字串。 }
+        zipFileData: { type: string, format: byte, description: 含圖檔 ZIP 的 Base64 字串 }
+        sendInfoList: { type: array, items: { $ref: '#/components/schemas/GoodsReportItem' } }
+    GoodsVerifyReportRequest:
+      title: verifyReportGoods：商品提報－送審請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: verifyReportGoods }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        zipFileData: { type: string, format: byte, description: 含圖檔 ZIP 的 Base64 字串 }
+        sendInfoList: { type: array, items: { $ref: '#/components/schemas/GoodsReportItem' } }
+    GoodsBasicDataRequest:
+      title: queryGoodsBasicData：商品簡易查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: queryGoodsBasicData }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
         sendInfo:
           type: object
-          description: 單一查詢或單一操作的動作資料。商品簡易／上下架／歷史價格查詢用 goodsCode、goodsName、entpGoodsNo、saleGB；上下架查詢另用 delyType、outForNoGoods；商品查詢用 entpGoodsNoQ、doFlag、goodsName、frDate、toDate、goodsCode；內容查詢用 supGoodsCode；提報進度用 goodsCode、goodsName、fromDHM、toDHM、progress、media；編碼對照用 item、level、code、brandEng、brandChi、address、flag。
-          additionalProperties: true
+          properties:
+            goodsCode: { type: string, description: momo 商品編號 }
+            goodsName: { type: string, description: 商品名稱 }
+            entpGoodsNo: { type: string, description: 原廠商品編號 }
+            saleGB: { type: string, description: 銷售狀態 }
+    GoodsChangeQtyRequest:
+      title: changeGoodsQty：商品加／減量申請請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: changeGoodsQty }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
         sendInfoList:
           type: array
-          description: 批次商品資料。商品提報使用完整提報商品內容；加減量使用 goodsCode、goodsName、goodsdtCode、goodsdtInfo、addReduceQty（減量加負號）及 baljuChgFlag（1 申請／2 取消補貨通知／空字串不異動）；上下架申請使用 goodsCode、goodsName、goodsdtCode、goodsdtInfo、entpRemark、saleGBName（填「申請」）。
-          items: { type: object, additionalProperties: true }
+          items:
+            type: object
+            required: [goodsCode, goodsName, goodsdtCode, goodsdtInfo, addReduceQty]
+            properties:
+              goodsCode: { type: string, description: momo 商品編號 }
+              goodsName: { type: string, description: 商品名稱 }
+              goodsdtCode: { type: string, description: 單品編號 }
+              goodsdtInfo: { type: string, description: 單品詳細資訊 }
+              addReduceQty: { type: integer, description: 加減數量 (減量帶負號) }
+              baljuChgFlag: { type: string, description: 補貨通知變更標記 (1:申請, 2:取消, 空值:不異動) }
+    GoodsOnOffShelfQueryRequest:
+      title: queryOnOffShelf：商品上下架查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: queryOnOffShelf }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          properties:
+            goodsCode: { type: string, description: momo 商品編號 }
+            goodsName: { type: string, description: 商品名稱 }
+            entpGoodsNo: { type: string, description: 原廠商品編號 }
+            saleGB: { type: string, description: 銷售狀態 }
+            delyType: { type: string, description: 配送類型 }
+            outForNoGoods: { type: string, description: 缺貨標記 }
+    GoodsOnOffShelfApplyRequest:
+      title: applyOnOffShelf：商品上下架申請請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: applyOnOffShelf }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [goodsCode, goodsName, goodsdtCode, goodsdtInfo, entpRemark, saleGBName]
+            properties:
+              goodsCode: { type: string, description: momo 商品編號 }
+              goodsName: { type: string, description: 商品名稱 }
+              goodsdtCode: { type: string, description: 單品編號 }
+              goodsdtInfo: { type: string, description: 單品詳細資訊 }
+              entpRemark: { type: string, description: 廠商備註說明 }
+              saleGBName: { type: string, example: 申請, description: 填寫「申請」 }
+    GoodsListQueryRequest:
+      title: queryGoodsList：商品查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: queryGoodsList }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          properties:
+            entpGoodsNoQ: { type: string, description: 廠商商品編號 }
+            doFlag: { type: string, description: 作業標記 }
+            goodsName: { type: string, description: 商品名稱 }
+            frDate: { type: string, description: 起始日期 }
+            toDate: { type: string, description: 結束日期 }
+            goodsCode: { type: string, description: momo 商品編號 }
+    GoodsInfoQueryRequest:
+      title: queryGoodInfo：商品內容查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: queryGoodInfo }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          properties:
+            supGoodsCode: { type: string, description: 供應商商品編號 }
+    GoodsScheduleQueryRequest:
+      title: queryGoodSchedule：商品提報進度查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: queryGoodSchedule }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          properties:
+            goodsCode: { type: string, description: momo 商品編號 }
+            goodsName: { type: string, description: 商品名稱 }
+            fromDHM: { type: string, description: 起始時間 }
+            toDHM: { type: string, description: 結束時間 }
+            progress: { type: string, description: 提報進度代碼 }
+            media: { type: string, description: 通路媒體 }
+    GoodsBasicCodeQueryRequest:
+      title: queryGoodsBasicCode：編碼對照表查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: queryGoodsBasicCode }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          properties:
+            item: { type: string, description: 對照項目 }
+            level: { type: string, description: 層級 }
+            code: { type: string, description: 代碼 }
+            brandEng: { type: string, description: 品牌英文名 }
+            brandChi: { type: string, description: 品牌中文名 }
+            address: { type: string, description: 地址 }
+            flag: { type: string, description: 標記 }
+    GoodsPriceHistoryQueryRequest:
+      title: queryPriceHistory：商品歷史價格查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: queryPriceHistory }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          properties:
+            goodsCode: { type: string, description: momo 商品編號 }
+            goodsName: { type: string, description: 商品名稱 }
+            entpGoodsNo: { type: string, description: 原廠商品編號 }
+    GoodsDetailPriceHistoryQueryRequest:
+      title: queryDetailPriceHistory：商品歷史價格明細查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: queryDetailPriceHistory }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          properties:
+            goodsCode: { type: string, description: momo 商品編號 }
+            goodsName: { type: string, description: 商品名稱 }
+            entpGoodsNo: { type: string, description: 原廠商品編號 }
     GoodsServletResponse:
       description: 依請求的 doAction 回傳下列其中一種商品作業回應格式。
       anyOf:
@@ -3233,46 +3465,618 @@ components:
         jsonValue: { type: string, description: 商品提報暫存或送審的 JSON 請求內容；與 application/json 格式相同，但不填 zipFileData。 }
         zip_File: { type: string, format: binary, description: 商品圖檔 ZIP 檔案。 }
     OrderServletRequest:
+      description: 依 doAction 區分具體的訂單請求規格。
+      oneOf:
+        - { $ref: '#/components/schemas/OrderUnsendCompanyQueryRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendCompanyConfirmRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendStoresQueryRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendStoresCheckGoodsRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendStoresCombineBoxRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendStoresFinishRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendStoresPrintPdfRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendThirdQueryRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendThirdCheckGoodsRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendThirdCombineBoxRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendThirdFinishRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendThirdPrintPdfRequest' }
+        - { $ref: '#/components/schemas/OrderStopSendingQueryRequest' }
+        - { $ref: '#/components/schemas/OrderStopSendingConfirmRequest' }
+        - { $ref: '#/components/schemas/OrderRecoverCompanyQueryRequest' }
+        - { $ref: '#/components/schemas/OrderRecoverCompanyConfirmRequest' }
+        - { $ref: '#/components/schemas/OrderRecoverStoresQueryRequest' }
+        - { $ref: '#/components/schemas/OrderRecoverThirdQueryRequest' }
+        - { $ref: '#/components/schemas/OrderSendingCompanyQueryRequest' }
+        - { $ref: '#/components/schemas/OrderSendingStoresQueryRequest' }
+        - { $ref: '#/components/schemas/OrderSendingThirdQueryRequest' }
+        - { $ref: '#/components/schemas/OrderBackQueryRequest' }
+        - { $ref: '#/components/schemas/OrderGoodsStatisticsQueryRequest' }
+        - { $ref: '#/components/schemas/OrderRecoverStoresConfirmRequest' }
+        - { $ref: '#/components/schemas/OrderRecoverThirdSaveMsgRequest' }
+        - { $ref: '#/components/schemas/OrderRecoverThirdConfirmRequest' }
+        - { $ref: '#/components/schemas/OrderUpdateAppliedChangeAddrRequest' }
+        - { $ref: '#/components/schemas/OrderUnsendStoresChangeDelyGbRequest' }
+      discriminator:
+        propertyName: doAction
+        mapping:
+          unsendCompanyQuery: '#/components/schemas/OrderUnsendCompanyQueryRequest'
+          unsendCompanyConfirm: '#/components/schemas/OrderUnsendCompanyConfirmRequest'
+          unsendStoresQuery: '#/components/schemas/OrderUnsendStoresQueryRequest'
+          unsendStoresCheckGoods: '#/components/schemas/OrderUnsendStoresCheckGoodsRequest'
+          unsendStoresCombineBox: '#/components/schemas/OrderUnsendStoresCombineBoxRequest'
+          unsendStoresFinish: '#/components/schemas/OrderUnsendStoresFinishRequest'
+          unsendStoresPrintPdf: '#/components/schemas/OrderUnsendStoresPrintPdfRequest'
+          unsendThirdQuery: '#/components/schemas/OrderUnsendThirdQueryRequest'
+          unsendThirdCheckGoods: '#/components/schemas/OrderUnsendThirdCheckGoodsRequest'
+          unsendThirdCombineBox: '#/components/schemas/OrderUnsendThirdCombineBoxRequest'
+          unsendThirdFinish: '#/components/schemas/OrderUnsendThirdFinishRequest'
+          unsendThirdPrintPdf: '#/components/schemas/OrderUnsendThirdPrintPdfRequest'
+          stopSendingQuery: '#/components/schemas/OrderStopSendingQueryRequest'
+          stopSendingConfirm: '#/components/schemas/OrderStopSendingConfirmRequest'
+          recoverCompanyQuery: '#/components/schemas/OrderRecoverCompanyQueryRequest'
+          recoverCompanyConfirm: '#/components/schemas/OrderRecoverCompanyConfirmRequest'
+          recoverStoresQuery: '#/components/schemas/OrderRecoverStoresQueryRequest'
+          recoverThirdQuery: '#/components/schemas/OrderRecoverThirdQueryRequest'
+          sendingCompanyQuery: '#/components/schemas/OrderSendingCompanyQueryRequest'
+          sendingStoresQuery: '#/components/schemas/OrderSendingStoresQueryRequest'
+          sendingThirdQuery: '#/components/schemas/OrderSendingThirdQueryRequest'
+          orderBackQuery: '#/components/schemas/OrderBackQueryRequest'
+          orderGoodsStatisticsQuery: '#/components/schemas/OrderGoodsStatisticsQueryRequest'
+          recoverStoresConfirm: '#/components/schemas/OrderRecoverStoresConfirmRequest'
+          recoverThirdSaveMsg: '#/components/schemas/OrderRecoverThirdSaveMsgRequest'
+          recoverThirdConfirm: '#/components/schemas/OrderRecoverThirdConfirmRequest'
+          updateAppliedChangeAddr: '#/components/schemas/OrderUpdateAppliedChangeAddrRequest'
+          unsendStoresChangeDelyGb: '#/components/schemas/OrderUnsendStoresChangeDelyGbRequest'
+    OrderUnsendCompanyQueryRequest:
+      title: unsendCompanyQuery：未出貨訂單－廠商配送－查詢請求
       type: object
-      required: [doAction, loginInfo]
+      required: [doAction, loginInfo, sendInfo]
       properties:
-        doAction:
-          type: string
-          enum: [orderBackQuery, orderGoodsStatisticsQuery, recoverCompanyQuery, recoverCompanyConfirm, recoverStoresQuery, recoverStoresConfirm, recoverThirdQuery, recoverThirdSaveMsg, recoverThirdConfirm, sendingCompanyQuery, sendingStoresQuery, sendingThirdQuery, stopSendingQuery, stopSendingConfirm, unsendCompanyQuery, unsendCompanyConfirm, unsendStoresQuery, unsendStoresCheckGoods, unsendStoresCombineBox, unsendStoresPrintPdf, unsendStoresFinish, unsendStoresChangeDelyGb, unsendThirdQuery, unsendThirdCheckGoods, unsendThirdCombineBox, unsendThirdPrintPdf, unsendThirdFinish, updateAppliedChangeAddr]
-          description: |-
-            請填入要執行的訂單作業代碼。每個代碼的實際行為由下列分支的名稱表示；例如選擇 `unsendStoresPrintPdf` 即為「未出貨訂單－超商取貨－列印 PDF」。
-          oneOf:
-            - { const: orderBackQuery, title: 出貨中訂單－訂單返回－查詢 }
-            - { const: orderGoodsStatisticsQuery, title: 訂單商品接單統計－查詢 }
-            - { const: recoverCompanyQuery, title: 未回收訂單－廠商配送－查詢 }
-            - { const: recoverCompanyConfirm, title: 未回收訂單－廠商配送－回收確認 }
-            - { const: recoverStoresQuery, title: 未回收訂單－超商退貨／客未取－查詢 }
-            - { const: recoverStoresConfirm, title: 未回收訂單－超商退貨／客未取－回收確認 }
-            - { const: recoverThirdQuery, title: 未回收訂單－第三方物流回押回收－查詢 }
-            - { const: recoverThirdSaveMsg, title: 未回收訂單－第三方物流回押回收－儲存訊息 }
-            - { const: recoverThirdConfirm, title: 未回收訂單－第三方物流回押回收－回收確認 }
-            - { const: sendingCompanyQuery, title: 出貨中訂單－貴重／精品－查詢 }
-            - { const: sendingStoresQuery, title: 出貨中訂單－超商取貨－查詢 }
-            - { const: sendingThirdQuery, title: 出貨中訂單－第三方物流－查詢 }
-            - { const: stopSendingQuery, title: 未押出庫客辦退－查詢 }
-            - { const: stopSendingConfirm, title: 攔貨訂單－攔貨確認（僅廠商配送且非精品倉商品） }
-            - { const: unsendCompanyQuery, title: 未出貨訂單－廠商配送－查詢 }
-            - { const: unsendCompanyConfirm, title: 未出貨訂單－廠商配送－出貨確認 }
-            - { const: unsendStoresQuery, title: 未出貨訂單－超商取貨－查詢 }
-            - { const: unsendStoresCheckGoods, title: 未出貨訂單－超商取貨－貨源確認 }
-            - { const: unsendStoresCombineBox, title: 未出貨訂單－超商取貨－併箱 }
-            - { const: unsendStoresPrintPdf, title: 未出貨訂單－超商取貨－列印 PDF }
-            - { const: unsendStoresFinish, title: 未出貨訂單－超商取貨－出貨確認 }
-            - { const: unsendStoresChangeDelyGb, title: 未出貨訂單－超商取貨－店到店轉換 }
-            - { const: unsendThirdQuery, title: 未出貨訂單－第三方物流－查詢 }
-            - { const: unsendThirdCheckGoods, title: 未出貨訂單－第三方物流－貨源確認 }
-            - { const: unsendThirdCombineBox, title: 未出貨訂單－第三方物流－併箱 }
-            - { const: unsendThirdPrintPdf, title: 未出貨訂單－第三方物流－列印 PDF }
-            - { const: unsendThirdFinish, title: 未出貨訂單－第三方物流－出貨確認 }
-            - { const: updateAppliedChangeAddr, title: 已申請改址的同意／拒絕處理 }
+        doAction: { type: string, const: unsendCompanyQuery }
         loginInfo: { $ref: '#/components/schemas/LoginInfo' }
-        sendInfo: { type: object, description: 動作特有的查詢條件、單號或單筆處理資料；欄位依 doAction 的輸入規格決定。, additionalProperties: true }
-        sendInfoList: { type: array, description: 動作特有的批次訂單／商品處理資料；欄位依 doAction 的輸入規格決定。, items: { type: object, additionalProperties: true } }
+        sendInfo:
+          type: object
+          required: [company_fr_dd, company_fr_hh, company_fr_mm, company_to_dd, company_to_hh, company_to_mm]
+          properties:
+            company_fr_dd: { type: string, example: '2026/08/01', description: 轉單日起 (YYYY/MM/DD) }
+            company_fr_hh: { type: string, example: '00', description: 轉單日起時 }
+            company_fr_mm: { type: string, example: '00', description: 轉單日起分 }
+            company_to_dd: { type: string, example: '2026/08/07', description: 轉單日迄 (YYYY/MM/DD) }
+            company_to_hh: { type: string, example: '23', description: 轉單日迄時 }
+            company_to_mm: { type: string, example: '59', description: 轉單日迄分 }
+            company_receiver: { type: string, description: 收件人姓名 (可模糊搜尋) }
+            company_goodsCode: { type: string, description: 商品編號 }
+            company_orderNo: { type: string, description: 訂單編號 }
+            company_entpGoodsNo: { type: string, description: 原廠編號 }
+            company_orderGb: { type: string, description: 訂單類別 (10:一般, 40:交換配送, 100008:3CDIY) }
+            company_recycleLargeMachineType: { type: string, description: 是否為廢四機 (1:需回收, 0:不需回收) }
+            company_ChangeAddressAll: { type: string, description: 改地址申請條件 (1:原地址, 2:申請更換, 3:已更換) }
+    OrderUnsendCompanyConfirmRequest:
+      title: unsendCompanyConfirm：未出貨訂單－廠商配送－出貨確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendCompanyConfirm }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr, msgNote, delyGbStr, slipNo]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, description: 配送狀態 }
+              msgNote: { type: string, description: 配送訊息 }
+              scmDelyDate: { type: string, description: 約定配送日 (yyyy/MM/dd) }
+              delyGbStr: { type: string, description: 物流公司 }
+              slipNo: { type: string, description: 配送單號 }
+              shipTypeStr: { type: string, description: 出貨包材 }
+              packTypeStr: { type: string, description: 包材類型 }
+              packUnit: { type: string, description: 包材重量 }
+    OrderUnsendStoresQueryRequest:
+      title: unsendStoresQuery：未出貨訂單－超商取貨－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: unsendStoresQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [stores_fr_dd, stores_fr_hh, stores_fr_mm, stores_to_dd, stores_to_hh, stores_to_mm, stores_special, dely_gb]
+          properties:
+            stores_fr_dd: { type: string, description: 轉單日起 (YYYY/MM/DD) }
+            stores_fr_hh: { type: string, description: 起時 }
+            stores_fr_mm: { type: string, description: 起分 }
+            stores_to_dd: { type: string, description: 轉單日迄 (YYYY/MM/DD) }
+            stores_to_hh: { type: string, description: 迄時 }
+            stores_to_mm: { type: string, description: 迄分 }
+            stores_receiver: { type: string, description: 收件人姓名 }
+            stores_goodsCode: { type: string, description: 商品編號 }
+            stores_orderNo: { type: string, description: 訂單編號 }
+            stores_entpGoodsNo: { type: string, description: 原廠編號 }
+            stores_special: { type: string, description: 特配門市 (Y/N) }
+            dely_gb: { type: string, description: 門市類型 (21:7-11大智通, 23:便利達康, 27:全家, 28:7-11店到店, 29:全家店到店, 2A:OK, 2B:萊爾富) }
+    OrderUnsendStoresCheckGoodsRequest:
+      title: unsendStoresCheckGoods：未出貨訂單－超商取貨－貨源確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendStoresCheckGoods }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr, msgNote]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, description: 配送狀態 }
+              msgNote: { type: string, description: 配送訊息 }
+    OrderUnsendStoresCombineBoxRequest:
+      title: unsendStoresCombineBox：未出貨訂單－超商取貨－併箱請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendStoresCombineBox }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, boxYn, remark5VStr]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              boxYn: { type: string, description: 併箱編號 (00:不併箱, 1以上:併箱編號) }
+              remark5VStr: { type: string, const: 可出貨, description: 填寫「可出貨」 }
+    OrderUnsendStoresFinishRequest:
+      title: unsendStoresFinish：未出貨訂單－超商取貨－出貨確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendStoresFinish }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr, shipTypeStr, packTypeStr, packUnit]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, const: 可出貨, description: 填寫「可出貨」 }
+              shipTypeStr: { type: string, description: 出貨包材 }
+              packTypeStr: { type: string, description: 包材類型 }
+              packUnit: { type: string, description: 包材重量 }
+    OrderUnsendStoresPrintPdfRequest:
+      title: unsendStoresPrintPdf：未出貨訂單－超商取貨－列印Pdf請求
+      type: object
+      required: [doAction, printType, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendStoresPrintPdf }
+        printType: { type: string, enum: [label, dt], description: 列印類別 (label:標籤, dt:明細) }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+    OrderUnsendThirdQueryRequest:
+      title: unsendThirdQuery：未出貨訂單－第三方物流－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: unsendThirdQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [third_fr_dd, third_fr_hh, third_fr_mm, third_to_dd, third_to_hh, third_to_mm, third_delyGb, third_delyTemp]
+          properties:
+            third_fr_dd: { type: string, description: 轉單日起 (YYYY/MM/DD) }
+            third_fr_hh: { type: string, description: 起時 }
+            third_fr_mm: { type: string, description: 起分 }
+            third_to_dd: { type: string, description: 轉單日迄 (YYYY/MM/DD) }
+            third_to_hh: { type: string, description: 迄時 }
+            third_to_mm: { type: string, description: 迄分 }
+            third_receiver: { type: string, description: 收件人姓名 }
+            third_goodsCode: { type: string, description: 商品編號 }
+            third_orderNo: { type: string, description: 訂單編號 }
+            third_entpGoodsNo: { type: string, description: 原廠編號 }
+            third_orderGb: { type: string, description: 訂單類別 (10:一般, 40:交換配送, 100008:3CDIY) }
+            third_delyGb: { type: string, description: 物流商 (61:宅配通, 62:新竹, 63:宅急便, 65:大榮) }
+            third_delyTemp: { type: string, description: 配送溫層 (01:常溫, 02:冷凍, 03:冷藏) }
+    OrderUnsendThirdCheckGoodsRequest:
+      title: unsendThirdCheckGoods：未出貨訂單－第三方物流－貨源確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendThirdCheckGoods }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr, msgNote]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, description: 配送狀態 }
+              msgNote: { type: string, description: 配送訊息 }
+    OrderUnsendThirdCombineBoxRequest:
+      title: unsendThirdCombineBox：未出貨訂單－第三方物流－併箱請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendThirdCombineBox }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, boxYn, remark5VStr]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              boxYn: { type: string, description: 併箱編號 }
+              remark5VStr: { type: string, const: 可出貨, description: 填寫「可出貨」 }
+    OrderUnsendThirdFinishRequest:
+      title: unsendThirdFinish：未出貨訂單－第三方物流－出貨確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendThirdFinish }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr, shipTypeStr, packTypeStr, packUnit]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, const: 可出貨, description: 填寫「可出貨」 }
+              shipTypeStr: { type: string, description: 出貨包材 }
+              packTypeStr: { type: string, description: 包材類型 }
+              packUnit: { type: string, description: 包材重量 }
+    OrderUnsendThirdPrintPdfRequest:
+      title: unsendThirdPrintPdf：未出貨訂單－第三方物流－列印Pdf請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendThirdPrintPdf }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+    OrderStopSendingQueryRequest:
+      title: stopSendingQuery：未押出庫客辦退－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: stopSendingQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [cancel_fr_dd, cancel_fr_hh, cancel_fr_mm, cancel_to_dd, cancel_to_hh, cancel_to_mm]
+          properties:
+            cancel_fr_dd: { type: string, description: 客辦退日期起 (YYYY/MM/DD) }
+            cancel_fr_hh: { type: string, description: 起時 }
+            cancel_fr_mm: { type: string, description: 起分 }
+            cancel_to_dd: { type: string, description: 客辦退日期迄 (YYYY/MM/DD) }
+            cancel_to_hh: { type: string, description: 迄時 }
+            cancel_to_mm: { type: string, description: 迄分 }
+            cancel_goodsCode: { type: string, description: 商品編號 }
+            cancel_orderNo: { type: string, description: 訂單編號 }
+            cancel_entpGoodsNo: { type: string, description: 原廠編號 }
+            dely_gb: { type: string, description: 配送類型 }
+            reason_gb: { type: string, description: 退貨原因類別 }
+    OrderStopSendingConfirmRequest:
+      title: stopSendingConfirm：未押出庫客辦退－攔貨確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: stopSendingConfirm }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr, msgNote]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, description: 攔貨狀態 }
+              msgNote: { type: string, description: 訊息備註 }
+              slipNo: { type: string, description: 宅配單號 (選填) }
+    OrderRecoverCompanyQueryRequest:
+      title: recoverCompanyQuery：未回收訂單－廠商配送－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: recoverCompanyQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [return_fr_dd, return_fr_hh, return_fr_mm, return_to_dd, return_to_hh, return_to_mm]
+          properties:
+            return_fr_dd: { type: string, description: 退貨日期起 (YYYY/MM/DD) }
+            return_fr_hh: { type: string, description: 起時 }
+            return_fr_mm: { type: string, description: 起分 }
+            return_to_dd: { type: string, description: 退貨日期迄 (YYYY/MM/DD) }
+            return_to_hh: { type: string, description: 迄時 }
+            return_to_mm: { type: string, description: 迄分 }
+            return_receiver: { type: string, description: 收件人姓名 }
+            return_goodsCode: { type: string, description: 商品編號 }
+            return_orderNo: { type: string, description: 訂單編號 }
+            return_entpGoodsNo: { type: string, description: 原廠編號 }
+            return_orderGb: { type: string, description: 訂單類別 }
+    OrderRecoverCompanyConfirmRequest:
+      title: recoverCompanyConfirm：未回收訂單－廠商配送－回收確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: recoverCompanyConfirm }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr, msgNote]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, description: 回收狀態 }
+              msgNote: { type: string, description: 訊息備註 }
+              scmDelyDate: { type: string, description: 指定回收日 }
+              delyGbStr: { type: string, description: 物流公司 }
+              slipNo: { type: string, description: 回收單號 }
+    OrderRecoverStoresQueryRequest:
+      title: recoverStoresQuery：未回收訂單－超商退貨/客未取－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: recoverStoresQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [return_fr_dd, return_fr_hh, return_fr_mm, return_to_dd, return_to_hh, return_to_mm, returnType, dely_gb]
+          properties:
+            return_fr_dd: { type: string, description: 退貨日期起 (YYYY/MM/DD) }
+            return_fr_hh: { type: string, description: 起時 }
+            return_fr_mm: { type: string, description: 起分 }
+            return_to_dd: { type: string, description: 退貨日期迄 (YYYY/MM/DD) }
+            return_to_hh: { type: string, description: 迄時 }
+            return_to_mm: { type: string, description: 迄分 }
+            return_receiver: { type: string, description: 收件人姓名 }
+            return_goodsCode: { type: string, description: 商品編號 }
+            return_orderNo: { type: string, description: 訂單編號 }
+            return_entpGoodsNo: { type: string, description: 原廠編號 }
+            returnType: { type: string, description: 退貨類型 }
+            recycleConfirmStatus: { type: string, description: 回收確認狀態 }
+            dely_gb: { type: string, description: 門市類型 }
+            order_status: { type: string, description: 訂單狀態 }
+    OrderRecoverThirdQueryRequest:
+      title: recoverThirdQuery：未回收訂單－第三方物流回押回收確認－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: recoverThirdQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [thirdRtn_fr_dd, thirdRtn_fr_hh, thirdRtn_fr_mm, thirdRtn_to_dd, thirdRtn_to_hh, thirdRtn_to_mm, thirdRtn_delyGb]
+          properties:
+            thirdRtn_fr_dd: { type: string, description: 退貨日期起 (YYYY/MM/DD) }
+            thirdRtn_fr_hh: { type: string, description: 起時 }
+            thirdRtn_fr_mm: { type: string, description: 起分 }
+            thirdRtn_to_dd: { type: string, description: 退貨日期迄 (YYYY/MM/DD) }
+            thirdRtn_to_hh: { type: string, description: 迄時 }
+            thirdRtn_to_mm: { type: string, description: 迄分 }
+            thirdRtn_receiver: { type: string, description: 收件人姓名 }
+            thirdRtn_goodsCode: { type: string, description: 商品編號 }
+            thirdRtn_orderNo: { type: string, description: 訂單編號 }
+            thirdRtn_entpGoodsNo: { type: string, description: 原廠編號 }
+            thirdRtn_delyGb: { type: string, description: 物流商代碼 }
+    OrderSendingCompanyQueryRequest:
+      title: sendingCompanyQuery：出貨中訂單－貴重/精品－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: sendingCompanyQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [fromDate, fromHour, fromMinute, toDate, toHour, toMinute, status]
+          properties:
+            fromDate: { type: string, description: 查詢起日 (YYYY/MM/DD) }
+            fromHour: { type: string, description: 起時 }
+            fromMinute: { type: string, description: 起分 }
+            toDate: { type: string, description: 查詢迄日 (YYYY/MM/DD) }
+            toHour: { type: string, description: 迄時 }
+            toMinute: { type: string, description: 迄分 }
+            status: { type: string, description: 細狀態代碼 }
+            qryGoodsCode: { type: string, description: momo 商品編號 }
+            entpGoodsCode: { type: string, description: 廠商商品編號 }
+            receiver: { type: string, description: 收件人姓名 }
+            orderNo: { type: string, description: 訂單編號 }
+    OrderSendingStoresQueryRequest:
+      title: sendingStoresQuery：出貨中訂單－超商取貨－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: sendingStoresQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [fromDate, fromHour, fromMinute, toDate, toHour, toMinute, status, dely_gb]
+          properties:
+            fromDate: { type: string, example: '2026/08/01', description: 查詢起日 (YYYY/MM/DD) }
+            fromHour: { type: string, example: '00', description: 查詢起時 (HH) }
+            fromMinute: { type: string, example: '00', description: 查詢起分 (mm) }
+            toDate: { type: string, example: '2026/08/07', description: 查詢迄日 (YYYY/MM/DD) }
+            toHour: { type: string, example: '23', description: 查詢迄時 (HH) }
+            toMinute: { type: string, example: '59', description: 查詢迄分 (mm) }
+            status:
+              type: string
+              enum: ['1', '2', '3', '4', '5']
+              x-enum-descriptions: [狀態 1, 狀態 2, 狀態 3, 狀態 4, 狀態 5]
+              description: 出貨中超商取貨細狀態代碼（允許 1~5）。
+            dely_gb:
+              type: string
+              enum: ['21', '22', '23', '27']
+              x-enum-descriptions: [全家, 統一超商 (7-11), 萊爾富, OK 超商]
+              description: 超商別代碼。
+            qryGoodsCode: { type: string, description: momo 商品編號 }
+            entpGoodsCode: { type: string, description: 廠商商品編號 }
+            receiver: { type: string, description: 收件人姓名 }
+            orderNo: { type: string, description: 訂單編號 }
+    OrderSendingThirdQueryRequest:
+      title: sendingThirdQuery：出貨中訂單－第三方物流－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: sendingThirdQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [fromDate, fromHour, fromMinute, toDate, toHour, toMinute, status, logistics]
+          properties:
+            fromDate: { type: string, example: '2026/08/01', description: 查詢起日 (YYYY/MM/DD) }
+            fromHour: { type: string, example: '00', description: 查詢起時 (HH) }
+            fromMinute: { type: string, example: '00', description: 查詢起分 (mm) }
+            toDate: { type: string, example: '2026/08/07', description: 查詢迄日 (YYYY/MM/DD) }
+            toHour: { type: string, example: '23', description: 查詢迄時 (HH) }
+            toMinute: { type: string, example: '59', description: 查詢迄分 (mm) }
+            status:
+              type: string
+              enum: ['1', '2']
+              x-enum-descriptions: [狀態 1, 狀態 2]
+              description: 出貨中第三方物流細狀態代碼（僅允許 1, 2）。
+            logistics:
+              type: string
+              enum: ['61', '62', '63', '65']
+              x-enum-descriptions: [第三方物流 (大榮等), 宅配通, 新竹物流, 黑貓宅急便]
+              description: 第三方物流商代碼。
+            qryGoodsCode: { type: string, description: momo 商品編號 }
+            entpGoodsCode: { type: string, description: 廠商商品編號 }
+            receiver: { type: string, description: 收件人姓名 }
+            orderNo: { type: string, description: 訂單編號 }
+    OrderBackQueryRequest:
+      title: orderBackQuery：出貨中訂單－訂單返回－查詢請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: orderBackQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [fromDate, fromHour, fromMinute, toDate, toHour, toMinute]
+          properties:
+            fromDate: { type: string, description: 查詢起日 (YYYY/MM/DD) }
+            fromHour: { type: string, description: 起時 }
+            fromMinute: { type: string, description: 起分 }
+            toDate: { type: string, description: 查詢迄日 (YYYY/MM/DD) }
+            toHour: { type: string, description: 迄時 }
+            toMinute: { type: string, description: 迄分 }
+            entpGoodsCode: { type: string, description: 廠商商品編號 }
+            goodsCode: { type: string, description: momo 商品編號 }
+            orderNo: { type: string, description: 訂單編號 }
+    OrderGoodsStatisticsQueryRequest:
+      title: orderGoodsStatisticsQuery：訂單商品接單統計請求
+      type: object
+      required: [doAction, loginInfo, sendInfo]
+      properties:
+        doAction: { type: string, const: orderGoodsStatisticsQuery }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfo:
+          type: object
+          required: [fromDate, toDate]
+          properties:
+            fromDate: { type: string, description: 查詢起日 (YYYY/MM/DD) }
+            toDate: { type: string, description: 查詢迄日 (YYYY/MM/DD) }
+            entpGoodsCode: { type: string, description: 原廠編號 }
+    OrderRecoverStoresConfirmRequest:
+      title: recoverStoresConfirm：未回收訂單－超商退貨/客未取－回收確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: recoverStoresConfirm }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, description: 回收狀態 }
+    OrderRecoverThirdSaveMsgRequest:
+      title: recoverThirdSaveMsg：未回收訂單－第三方物流回押回收－儲存訊息請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: recoverThirdSaveMsg }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr, msgNote]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, description: 回收狀態 }
+              picFileList: { type: array, items: { type: string }, description: 異常圖片 Base64 列表 (1~5張 jpg) }
+              msgNote: { type: string, description: 回收訊息 }
+    OrderRecoverThirdConfirmRequest:
+      title: recoverThirdConfirm：未回收訂單－第三方物流回押回收－回收確認請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: recoverThirdConfirm }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, remark5VStr]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, const: 確認回收, description: 填寫「確認回收」 }
+    OrderUpdateAppliedChangeAddrRequest:
+      title: updateAppliedChangeAddr：同意/拒絕 改址請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: updateAppliedChangeAddr }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [isArgeeChgAddr, type, orderNoList]
+            properties:
+              isArgeeChgAddr: { type: string, enum: ['0', '1'], description: 0:拒絕, 1:同意 }
+              type: { type: string, enum: ['1', '2', '3'], description: 1:廠配, 2:精品, 3:第三方物流 }
+              orderNoList:
+                type: array
+                items:
+                  type: object
+                  required: [orderNo]
+                  properties:
+                    orderNo: { type: string, description: 訂單編號前14碼 }
+    OrderUnsendStoresChangeDelyGbRequest:
+      title: unsendStoresChangeDelyGb：未出貨訂單－超商取貨－店到店轉換請求
+      type: object
+      required: [doAction, loginInfo, sendInfoList]
+      properties:
+        doAction: { type: string, const: unsendStoresChangeDelyGb }
+        loginInfo: { $ref: '#/components/schemas/LoginInfo' }
+        sendInfoList:
+          type: array
+          items:
+            type: object
+            required: [completeOrderNo, newDelyGb]
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              newDelyGb: { type: string, description: 新門市類型 }
     OrderServletResponse:
       description: 依請求的 doAction 回傳下列其中一種訂單作業回應格式。
       anyOf:
@@ -3297,161 +4101,284 @@ components:
         - { $ref: '#/components/schemas/OrderUnsendStoresCombineBoxResponse' }
         - { $ref: '#/components/schemas/OrderUnsendStoresPrintPdfResponse' }
         - { $ref: '#/components/schemas/OrderUnsendStoresFinishResponse' }
-        - { $ref: '#/components/schemas/OrderUnsendStoresChangeDelyGbResponse' }
         - { $ref: '#/components/schemas/OrderUnsendThirdQueryResponse' }
         - { $ref: '#/components/schemas/OrderUnsendThirdCheckGoodsResponse' }
         - { $ref: '#/components/schemas/OrderUnsendThirdCombineBoxResponse' }
         - { $ref: '#/components/schemas/OrderUnsendThirdPrintPdfResponse' }
         - { $ref: '#/components/schemas/OrderUnsendThirdFinishResponse' }
         - { $ref: '#/components/schemas/OrderUpdateAppliedChangeAddrResponse' }
+        - { $ref: '#/components/schemas/OrderUnsendStoresChangeDelyGbResponse' }
     GoodsServletDataListResponse:
       type: object
       properties:
         ERROR: { type: string, description: 錯誤訊息。 }
-        dataList: { type: array, description: 查詢結果清單；清單項目的欄位依 doAction 對應的 Word 輸出規格決定。, items: { type: object, additionalProperties: true } }
-    GoodsServletSubmissionResponse:
+        dataList:
+          type: array
+          description: 查詢結果清單。
+          items:
+            type: object
+            properties:
+              GOODS_CODE: { type: string, description: momo 商品編號 }
+              GOODS_NAME: { type: string, description: 商品名稱 }
+              ENTP_GOODS_NO: { type: string, description: 廠商商品編號 }
+              SALE_GB: { type: string, description: 銷售狀態 }
+              PRICE: { type: string, description: 價格 }
+              STATUS: { type: string, description: 狀態 }
+              UPD_DATE: { type: string, description: 更新日期 }
+    GoodsBasicDataItem:
       type: object
       properties:
-        ERROR: { type: string, description: 錯誤訊息。 }
-        basicCheckMsgList: { type: array, description: 商品提報基本檢查失敗訊息清單；基本檢查未通過時回傳。, items: { type: string } }
-        resultInfo:
-          type: object
-          description: 商品提報基本檢查通過後的處理統計。
-          properties:
-            totalCnt: { type: string, description: 總筆數。 }
-            successCnt: { type: string, description: 成功筆數。 }
-            failCnt: { type: string, description: 失敗筆數。 }
-            failList: { type: array, description: 失敗清單；每筆依序包含商品編碼、商品原廠編號、商品名稱與錯誤訊息，欄位以 Tab 分隔。, items: { type: string } }
-    GoodsServletActionResultResponse:
+        goodsCode: { type: string, description: momo 商品編號 }
+        goodsName: { type: string, description: 商品名稱 }
+        entpGoodsNo: { type: string, description: 原廠商品編號 }
+        saleGB: { type: string, description: 銷售狀態 }
+        saleGBName: { type: string, description: 銷售狀態名稱 }
+        buyPrice: { type: string, description: 進價 }
+        salePrice: { type: string, description: 售價 }
+
+    GoodsOnOffShelfItem:
       type: object
       properties:
-        ERROR: { type: string, description: 錯誤訊息。 }
-        resultInfo:
-          type: object
-          description: 商品加減量或上下架申請的處理統計。
-          properties:
-            totalCnt: { type: string, description: 總筆數。 }
-            successCnt: { type: string, description: 成功筆數。 }
-            failCnt: { type: string, description: 失敗筆數。 }
-            undoCnt: { type: string, description: 未執行筆數。 }
-            totalCount: { type: string, description: 總筆數（部分動作採用此欄位名稱）。 }
-            successCount: { type: string, description: 成功筆數（部分動作採用此欄位名稱）。 }
-            failCount: { type: string, description: 失敗筆數（部分動作採用此欄位名稱）。 }
-            undoCount: { type: string, description: 未執行筆數（部分動作採用此欄位名稱）。 }
-            successList: { type: array, description: 成功清單。, items: { type: string } }
-            failList: { type: array, description: 失敗清單。, items: { type: string } }
-            undoList: { type: array, description: 未執行清單。, items: { type: string } }
-    GoodsServletInfoResponse:
+        goodsCode: { type: string, description: momo 商品編號 }
+        goodsName: { type: string, description: 商品名稱 }
+        entpGoodsNo: { type: string, description: 原廠商品編號 }
+        goodsdtCode: { type: string, description: 單品編號 }
+        goodsdtInfo: { type: string, description: 單品詳細 }
+        saleGB: { type: string, description: 銷售狀態 }
+        delyType: { type: string, description: 配送類型 }
+        outForNoGoods: { type: string, description: 缺貨標記 }
+
+    GoodsListItem:
       type: object
       properties:
-        ERROR: { type: string, description: 錯誤訊息。 }
-        dataList: { type: object, description: 商品內容；含商品基本資料、圖片網址、屬性清單與單品規格清單。 }
+        goodsCode: { type: string, description: momo 商品編號 }
+        goodsName: { type: string, description: 商品名稱 }
+        entpGoodsNo: { type: string, description: 原廠商品編號 }
+        cateCode: { type: string, description: 分類編號 }
+        brandCode: { type: string, description: 品牌編號 }
+        status: { type: string, description: 狀態 }
+        createDate: { type: string, description: 建立日期 }
+
+    GoodsScheduleItem:
+      type: object
+      properties:
+        goodsCode: { type: string, description: momo 商品編號 }
+        goodsName: { type: string, description: 商品名稱 }
+        progress: { type: string, description: 提報進度 }
+        progressName: { type: string, description: 進度名稱 }
+        updDate: { type: string, description: 更新時間 }
+
     GoodsTempReportResponse:
-      title: tempReportGoods：商品提報－暫存回應
-      x-doAction: tempReportGoods
-      allOf: [{ $ref: '#/components/schemas/GoodsServletSubmissionResponse' }]
+      type: object
+      properties:
+        result: { type: string, description: 暫存結果代碼 }
+        msg: { type: string, description: 訊息 }
+
     GoodsVerifyReportResponse:
-      title: verifyReportGoods：商品提報－送審回應
-      x-doAction: verifyReportGoods
-      allOf: [{ $ref: '#/components/schemas/GoodsServletSubmissionResponse' }]
+      type: object
+      properties:
+        result: { type: string, description: 送審結果代碼 }
+        msg: { type: string, description: 訊息 }
+
     GoodsBasicDataResponse:
-      title: queryGoodsBasicData：商品簡易查詢回應
-      x-doAction: queryGoodsBasicData
-      allOf: [{ $ref: '#/components/schemas/GoodsServletDataListResponse' }]
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        dataList:
+          type: array
+          items: { $ref: '#/components/schemas/GoodsBasicDataItem' }
+
     GoodsChangeQtyResponse:
-      title: changeGoodsQty：商品加／減量申請回應
-      x-doAction: changeGoodsQty
-      allOf: [{ $ref: '#/components/schemas/GoodsServletActionResultResponse' }]
+      type: object
+      properties:
+        result: { type: string, description: 申請結果代碼 }
+        msg: { type: string, description: 訊息 }
+
     GoodsOnOffShelfQueryResponse:
-      title: queryOnOffShelf：商品上下架查詢回應
-      x-doAction: queryOnOffShelf
-      allOf: [{ $ref: '#/components/schemas/GoodsServletDataListResponse' }]
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        dataList:
+          type: array
+          items: { $ref: '#/components/schemas/GoodsOnOffShelfItem' }
+
     GoodsOnOffShelfApplyResponse:
-      title: applyOnOffShelf：商品上下架申請回應
-      x-doAction: applyOnOffShelf
-      allOf: [{ $ref: '#/components/schemas/GoodsServletActionResultResponse' }]
+      type: object
+      properties:
+        result: { type: string, description: 申請結果代碼 }
+        msg: { type: string, description: 訊息 }
+
     GoodsListResponse:
-      title: queryGoodsList：商品查詢回應
-      x-doAction: queryGoodsList
-      allOf: [{ $ref: '#/components/schemas/GoodsServletDataListResponse' }]
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        dataList:
+          type: array
+          items: { $ref: '#/components/schemas/GoodsListItem' }
+
     GoodsInfoResponse:
-      title: queryGoodInfo：商品內容查詢回應
-      x-doAction: queryGoodInfo
-      allOf: [{ $ref: '#/components/schemas/GoodsServletInfoResponse' }]
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        data: { $ref: '#/components/schemas/GoodsReportItem' }
+
     GoodsScheduleResponse:
-      title: queryGoodSchedule：商品提報進度查詢回應
-      x-doAction: queryGoodSchedule
-      allOf: [{ $ref: '#/components/schemas/GoodsServletDataListResponse' }]
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        dataList:
+          type: array
+          items: { $ref: '#/components/schemas/GoodsScheduleItem' }
+
     GoodsBasicCodeResponse:
-      title: queryGoodsBasicCode：編碼對照表查詢回應
-      x-doAction: queryGoodsBasicCode
-      allOf: [{ $ref: '#/components/schemas/GoodsServletDataListResponse' }]
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        dataList:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string, description: 編碼代碼 }
+              name: { type: string, description: 名稱 }
+
     GoodsPriceHistoryResponse:
-      title: queryPriceHistory：商品歷史價格查詢回應
-      x-doAction: queryPriceHistory
-      allOf: [{ $ref: '#/components/schemas/GoodsServletDataListResponse' }]
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        dataList:
+          type: array
+          items:
+            type: object
+            properties:
+              goodsCode: { type: string, description: momo 商品編號 }
+              price: { type: string, description: 歷史價格 }
+              effectiveDate: { type: string, description: 生效日期 }
+
     GoodsDetailPriceHistoryResponse:
-      title: queryDetailPriceHistory：商品歷史價格明細查詢回應
-      x-doAction: queryDetailPriceHistory
-      allOf: [{ $ref: '#/components/schemas/GoodsServletDataListResponse' }]
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        dataList:
+          type: array
+          items:
+            type: object
+            properties:
+              goodsCode: { type: string, description: momo 商品編號 }
+              price: { type: string, description: 歷史價格 }
+              detailInfo: { type: string, description: 明細資訊 }
+
+    OrderServletResultInfoResponse:
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        resultInfo:
+          type: object
+          properties:
+            undoCnt: { type: string, description: 未執行筆數 }
+            undoList: { type: array, items: { type: string }, description: 未執行列表 }
+            confirmOkCnt: { type: string, description: 出庫/回收成功筆數 }
+            confirmOkList: { type: array, items: { type: string }, description: 成功列表 }
+            confirmFailCnt: { type: string, description: 失敗筆數 }
+            confirmFailList: { type: array, items: { type: string }, description: 失敗列表 }
+            confirmRepeatCnt: { type: string, description: 重複操作筆數 }
+            confirmRepeatList: { type: array, items: { type: string }, description: 重複操作列表 }
+            combineOkCnt: { type: string, description: 併箱成功筆數 }
+            combineFailCnt: { type: string, description: 併箱失敗筆數 }
+            combineFailList: { type: array, items: { type: string }, description: 併箱失敗列表 }
+            combineUsedCnt: { type: string, description: 箱號重複筆數 }
+            combineUsedList: { type: array, items: { type: string }, description: 箱號重複列表 }
+            saveMsgOkCnt: { type: string, description: 儲存訊息成功筆數 }
+            saveMsgFailCnt: { type: string, description: 儲存訊息失敗筆數 }
+            saveMsgFailList: { type: array, items: { type: string }, description: 儲存訊息失敗列表 }
+            addCounselOkCnt: { type: string, description: 建立商談成功筆數 }
+            addCounselFailCnt: { type: string, description: 建立商談失敗筆數 }
+            addCounselFailList: { type: array, items: { type: string }, description: 建立商談失敗列表 }
+            setZeroOkCnt: { type: string, description: 調整為0成功筆數 }
+            setZeroFailCount: { type: string, description: 調整為0失敗筆數 }
+            setZeroMsgList: { type: array, items: { type: string }, description: 調整為0失敗列表 }
+            changeOkCnt: { type: string, description: 轉換門市成功筆數 }
+            changeOkList: { type: array, items: { type: string }, description: 轉換門市成功列表 }
+            changeFailCnt: { type: string, description: 轉換門市失敗筆數 }
+            changeFailList: { type: array, items: { type: string }, description: 轉換門市失敗列表 }
+
+    OrderServletPrintPdfResponse:
+      type: object
+      properties:
+        ERROR: { type: string, description: 錯誤訊息 }
+        undoCnt: { type: string, description: 未執行筆數 }
+        undoList: { type: array, items: { type: string }, description: 未執行列表 }
+        pdfData: { type: string, description: PDF 檔 Base64 字串 }
     OrderServletDataListResponse:
       type: object
       properties:
         ERROR: { type: string, description: 錯誤訊息。 }
-        dataList: { type: array, description: 訂單查詢結果清單；清單項目的欄位依 doAction 對應的 Word 輸出規格決定。, items: { type: object, additionalProperties: true } }
-    OrderServletResultInfoResponse:
-      type: object
-      properties:
-        ERROR: { type: string, description: 錯誤訊息。 }
-        resultInfo:
-          type: object
-          description: 訂單作業的處理筆數與成功、失敗或未執行清單。
-          properties:
-            undoCnt: { type: string, description: 未執行筆數。 }
-            undoList: { type: array, description: 未執行清單。, items: { type: string } }
-            okCnt: { type: string, description: 成功筆數。 }
-            okList: { type: array, description: 成功清單。, items: { type: string } }
-            confirmOkCnt: { type: string, description: 出貨或回收確認成功筆數。 }
-            confirmOkList: { type: array, description: 出貨或回收確認成功清單。, items: { type: string } }
-            confirmFailCnt: { type: string, description: 出貨或回收確認失敗筆數。 }
-            confirmFailList: { type: array, description: 出貨或回收確認失敗清單。, items: { type: string } }
-            confirmRepeatCnt: { type: string, description: 重複確認筆數。 }
-            confirmRepeatList: { type: array, description: 重複確認清單。, items: { type: string } }
-            confirmNotOutCnt: { type: string, description: 尚未出庫而無法確認的筆數。 }
-            confirmNotOutList: { type: array, description: 尚未出庫而無法確認的清單。, items: { type: string } }
-            failCnt: { type: string, description: 失敗筆數。 }
-            failList: { type: array, description: 失敗清單。, items: { type: string } }
-            saveMsgOkCnt: { type: string, description: 訊息儲存成功筆數。 }
-            saveMsgFailCnt: { type: string, description: 訊息儲存失敗筆數。 }
-            saveMsgFailList: { type: array, description: 訊息儲存失敗清單。, items: { type: string } }
-            addCounselOkCnt: { type: string, description: 商談新增成功筆數。 }
-            addCounselFailCnt: { type: string, description: 商談新增失敗筆數。 }
-            addCounselFailList: { type: array, description: 商談新增失敗清單。, items: { type: string } }
-            addCounselFileFailCnt: { type: string, description: 商談附件新增失敗筆數。 }
-            addCounselFileFailList: { type: array, description: 商談附件新增失敗清單。, items: { type: string } }
-            addAbnormaOkCnt: { type: string, description: 異常處理成功筆數。 }
-            addAbnormaFailCnt: { type: string, description: 異常處理失敗筆數。 }
-            addAbnormaFailList: { type: array, description: 異常處理失敗清單。, items: { type: string } }
-            combineOkCnt: { type: string, description: 併箱成功筆數。 }
-            combineFailCnt: { type: string, description: 併箱失敗筆數。 }
-            combineFailList: { type: array, description: 併箱失敗清單。, items: { type: string } }
-            combineUsedCnt: { type: string, description: 已併箱筆數。 }
-            combineUsedList: { type: array, description: 已併箱清單。, items: { type: string } }
-            successCount: { type: string, description: 成功筆數（店到店轉換使用）。 }
-            failCount: { type: string, description: 失敗筆數（店到店轉換使用）。 }
-            failMessage: { type: string, description: 失敗訊息（店到店轉換使用）。 }
-    OrderServletPrintPdfResponse:
-      type: object
-      properties:
-        ERROR: { type: string, description: 錯誤訊息。 }
-        undoCnt: { type: string, description: 未執行筆數。 }
-        undoList: { type: array, description: 未執行清單。, items: { type: string } }
-        pdfData: { type: string, description: PDF 檔案串流。 }
+        dataList:
+          type: array
+          description: 訂單查詢結果清單。
+          items:
+            type: object
+            properties:
+              itemNo: { type: string, description: 項次 }
+              isRedStr: { type: string, description: 燈號 }
+              completeOrderNo: { type: string, description: 訂單編號 }
+              remark5VStr: { type: string, description: 配送狀態 / 回收狀態 }
+              msgNote: { type: string, description: 配送訊息 }
+              scmDelyDate: { type: string, description: 約定配送日 }
+              delyGbStr: { type: string, description: 物流公司 }
+              slipNo: { type: string, description: 配送單號 }
+              orderGbStr: { type: string, description: 訂單類別 }
+              msg: { type: string, description: 客戶配送需求 }
+              lastPricDate: { type: string, description: 轉單日 }
+              delyHopeDate: { type: string, description: 預計送達日 }
+              receiver: { type: string, description: 收件人姓名 }
+              receiverMask: { type: string, description: 收件人姓名(隱碼) }
+              receiverTel: { type: string, description: 收件人電話 }
+              receiverMobile: { type: string, description: 收件人行動電話 }
+              postNo: { type: string, description: 收件人地址郵遞區號 }
+              receiverAddr: { type: string, description: 收件人地址 }
+              receiverAddrMask: { type: string, description: 收件人地址(隱碼) }
+              newPostNo: { type: string, description: 申請改址郵遞區號 }
+              newReceiverAddr: { type: string, description: 申請改址地址 }
+              entpGoodsNo: { type: string, description: 商品原廠編號 }
+              goodsCode: { type: string, description: momo 商品編號 }
+              goodsName: { type: string, description: 商品名稱 }
+              goodsDtCode: { type: string, description: 單品編號 }
+              goodsDtInfo: { type: string, description: 單品詳細 }
+              syslast: { type: string, description: 數量 }
+              buyPrice: { type: string, description: 進價(含稅) }
+              describeNote: { type: string, description: 贈品 }
+              custName: { type: string, description: 訂購人姓名 }
+              custNameMask: { type: string, description: 訂購人姓名(隱碼) }
+              invoiceNo: { type: string, description: 發票號碼 }
+              invoiceDate: { type: string, description: 發票日期 }
+              custId: { type: string, description: 個人識別碼 }
+              packYnStr: { type: string, description: 群組變價商品 }
+              claimReason: { type: string, description: 換貨原因 }
+              isNeedRecycleLargeMachine: { type: string, description: 是否需要廢四機回收 }
+              salePrice: { type: string, description: 售價(含稅) }
+              storeId: { type: string, description: 取貨門市ID }
+              storeName: { type: string, description: 取貨門市名稱 }
+              slipProc: { type: string, description: 退貨單號 }
+              canChangeStoreYn: { type: string, description: 是否可變更門市 }
     OrderServletBackQueryResponse:
       type: object
       properties:
         result: { type: string, description: 查詢結果代碼。 }
-        data: { type: array, description: 訂單返回資料清單。, items: { type: object, additionalProperties: true } }
+        data:
+          type: array
+          description: 訂單返回資料清單。
+          items:
+            type: object
+            properties:
+              completeOrderNo: { type: string, description: 訂單編號 }
+              orderDtCode: { type: string, description: 訂單明細編號 }
+              goodsCode: { type: string, description: momo 商品編號 }
+              entpGoodsCode: { type: string, description: 廠商商品編號 }
+              goodsName: { type: string, description: 商品名稱 }
+              syslast: { type: string, description: 數量 }
+              rtnReason: { type: string, description: 返回原因 }
+              rtnDate: { type: string, description: 返回日期 }
     OrderServletAddressChangeResponse:
       type: object
       properties:
