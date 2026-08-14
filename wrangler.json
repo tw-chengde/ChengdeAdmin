@@ -7,7 +7,8 @@
 		"nodejs_compat"
 	],
 	"vars": {
-		"BETTER_AUTH_URL": "https://admin.tw-chengde.com"
+		"BETTER_AUTH_URL": "https://admin.tw-chengde.com",
+		"MOMO_PROXY_URL": "https://momo-proxy-780265451033.asia-east1.run.app",
 	},
 	"assets": {
 		"binding": "ASSETS",
