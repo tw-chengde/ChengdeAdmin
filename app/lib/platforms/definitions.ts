@@ -1,7 +1,50 @@
-import type { OrderStatusOption, PlatformDefinition } from "./types";
+import type {
+  OrderStatusOption,
+  PlatformDefinition,
+  ShippingStatusOption,
+  StoreDeliveryTypeOption,
+} from "./types";
 
 /** 各平台共通的「全部狀態」選項；也是「全部電商通路」分頁唯一的選項。 */
 export const ALL_ORDER_STATUS_OPTION: OrderStatusOption = { value: "ALL", label: "全部狀態" };
+
+const ALL_SHIPPING_STATUS_OPTION: ShippingStatusOption = { value: "All", label: "全部出貨中狀態" };
+
+/**
+ * momo SCM「出貨中訂單」的細狀態代碼，依配送類型分組
+ *（sendingStoresQuery／sendingThirdQuery 的 sendInfo.status）。
+ *
+ * 只用於組查詢條件與下拉選單；訂單列表顯示的細狀態文字讀回應的 code_name，
+ * 不從這裡的 label 回推——同一筆訂單的狀態可能在兩次查詢之間變動。
+ */
+export const MOMO_SHIPPING_STATUS_OPTIONS = {
+  Store: [
+    { value: "1", label: "已印單待驗收" },
+    { value: "2", label: "已印單未到貨" },
+    { value: "3", label: "商品驗退需重新出貨" },
+    { value: "4", label: "待客戶取件" },
+    { value: "5", label: "進驗尚未配達門市" },
+  ],
+  ThirdParty: [
+    { value: "1", label: "已印單" },
+    { value: "2", label: "配送中" },
+  ],
+} as const satisfies Record<string, readonly ShippingStatusOption[]>;
+
+/**
+ * momo SCM 超商取貨的 dely_gb 代碼。
+ *
+ * label 同時是訂單列表上顯示的超商品牌名稱，因此 momo-order-mapper 也讀這份定義，
+ * 避免下拉選單與訂單資料出現兩套超商名稱。
+ */
+export const MOMO_STORE_DELIVERY_TYPE_OPTIONS = [
+  { value: "21", label: "7-11" },
+  { value: "27", label: "全家" },
+  { value: "28", label: "7-11 店到店" },
+  { value: "29", label: "全家 店到店" },
+  { value: "2A", label: "OK mart" },
+  { value: "2B", label: "萊爾富" },
+] as const satisfies readonly StoreDeliveryTypeOption[];
 
 /**
  * 各平台的顯示定義（純資料）。
@@ -27,6 +70,20 @@ export const momoDefinition: PlatformDefinition = {
     { value: "UNSHIPPED", label: "未出貨" },
     { value: "SHIPPING", label: "出貨中" },
   ],
+  // momo SCM 的廠商配送（unsendCompanyQuery）尚未串接，故只列出已支援的兩種配送方式。
+  deliveryTypeOptions: [
+    { value: "All", label: "全部配送方式" },
+    { value: "Store", label: "超商取貨" },
+    { value: "ThirdParty", label: "第三方物流" },
+  ],
+  storeDeliveryTypeOptions: [{ value: "All", label: "全部超商" }, ...MOMO_STORE_DELIVERY_TYPE_OPTIONS],
+  storeDeliveryTypeForDeliveryTypes: ["Store"],
+  // 送出時對應 sendingStoresQuery／sendingThirdQuery 的 sendInfo.status。
+  shippingStatusOptionsByDeliveryType: {
+    Store: [ALL_SHIPPING_STATUS_OPTION, ...MOMO_SHIPPING_STATUS_OPTIONS.Store],
+    ThirdParty: [ALL_SHIPPING_STATUS_OPTION, ...MOMO_SHIPPING_STATUS_OPTIONS.ThirdParty],
+  },
+  shippingStatusForOrderStatuses: ["SHIPPING"],
 };
 
 export const moStorePlusDefinition: PlatformDefinition = {

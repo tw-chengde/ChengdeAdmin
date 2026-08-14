@@ -137,6 +137,7 @@ test("momo SCM queries shipping store-pickup orders with the documented payload"
           storeId: "123456",
           slip_no: "SLIP-001",
           create_date: "2026/08/01 10:00",
+          code_name: "已印單未到貨",
         }],
       }));
     },
@@ -166,10 +167,17 @@ test("momo SCM queries shipping store-pickup orders with the documented payload"
   });
   assert.deepEqual(mapMomoShippingOrders(rows).map((order) => ({
     status: order.status,
+    statusDetail: order.statusDetail,
     customerName: order.customerName,
     logistics: order.logistics,
     trackingNo: order.trackingNo,
-  })), [{ status: "配送中", customerName: "Ja*e", logistics: "Store A", trackingNo: "SLIP-001" }]);
+  })), [{
+    status: "配送中",
+    statusDetail: "已印單未到貨",
+    customerName: "Ja*e",
+    logistics: "Store A",
+    trackingNo: "SLIP-001",
+  }]);
 });
 
 test("momo SCM queries shipping third-party orders with the documented payload", async () => {
@@ -178,11 +186,16 @@ test("momo SCM queries shipping third-party orders with the documented payload",
     credentials,
     fetchImpl: async (_input, init) => {
       requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      return new Response(JSON.stringify({ dataList: [] }));
+      return new Response(JSON.stringify({
+        dataList: [{ completeOrderNo: "SHIPPING-THIRD-001", code_name: "已印單" }],
+      }));
     },
   });
 
-  await client.queryShippingThirdPartyOrders({ ...dateRange, logistics: "63", status: "1" });
+  const rows = await client.queryShippingThirdPartyOrders({ ...dateRange, logistics: "63", status: "1" });
+
+  // 細狀態取自回應的 code_name，畫面才顯示得出「已印單」而非一律「配送中」。
+  assert.deepEqual(mapMomoShippingOrders(rows).map((order) => order.statusDetail), ["已印單"]);
 
   assert.equal(requestBody?.doAction, "sendingThirdQuery");
   assert.deepEqual(requestBody?.sendInfo, {
@@ -351,6 +364,70 @@ test("momo SCM routes both unshipped order APIs through the configured proxy", a
     assert.equal(request.token, "proxy-secret");
     assert.equal(request.target, "https://scmapi.momoshop.com.tw");
   }
+});
+
+/** 記錄每次送出的 doAction 與 sendInfo，用來驗證查詢條件如何縮小查詢範圍。 */
+function requestRecordingClient(requests: Array<{ doAction: string; sendInfo: Record<string, unknown> }>) {
+  return new MomoScmClient({
+    credentials,
+    fetchImpl: async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)) as { doAction: string; sendInfo: Record<string, unknown> });
+      return new Response(JSON.stringify({ dataList: [] }));
+    },
+  });
+}
+
+test("momo connector 選定超商取貨與超商別時只查該超商的未出貨訂單", async () => {
+  const requests: Array<{ doAction: string; sendInfo: Record<string, unknown> }> = [];
+  const connector = createMomoConnector({ createClient: () => requestRecordingClient(requests) });
+
+  await connector.fetchOrders({ ...dateRange, status: "UNSHIPPED", deliveryType: "Store", storeDeliveryType: "27" });
+
+  assert.deepEqual(requests.map((request) => request.doAction), ["unsendStoresQuery"]);
+  assert.equal(requests[0].sendInfo.dely_gb, "27");
+});
+
+test("momo connector 選定第三方物流時不查超商取貨訂單", async () => {
+  const requests: Array<{ doAction: string; sendInfo: Record<string, unknown> }> = [];
+  const connector = createMomoConnector({
+    createClient: () => requestRecordingClient(requests),
+    thirdPartyDeliveryTypes: ["62"],
+    thirdPartyTemperatureTypes: ["01"],
+  });
+
+  await connector.fetchOrders({ ...dateRange, status: "UNSHIPPED", deliveryType: "ThirdParty" });
+
+  assert.deepEqual(requests.map((request) => request.doAction), ["unsendThirdQuery"]);
+});
+
+test("momo connector 選定出貨中細狀態時只查該狀態", async () => {
+  const requests: Array<{ doAction: string; sendInfo: Record<string, unknown> }> = [];
+  const connector = createMomoConnector({
+    createClient: () => requestRecordingClient(requests),
+    thirdPartyDeliveryTypes: ["62"],
+  });
+
+  await connector.fetchOrders({ ...dateRange, status: "SHIPPING", deliveryType: "ThirdParty", shippingStatus: "2" });
+
+  assert.deepEqual(requests.map((request) => request.doAction), ["sendingThirdQuery"]);
+  assert.equal(requests[0].sendInfo.status, "2");
+  assert.equal(requests[0].sendInfo.logistics, "62");
+});
+
+test("momo connector 未選定細狀態時仍逐一查詢超商取貨的全部細狀態", async () => {
+  const requests: Array<{ doAction: string; sendInfo: Record<string, unknown> }> = [];
+  const connector = createMomoConnector({ createClient: () => requestRecordingClient(requests) });
+
+  await connector.fetchOrders({
+    ...dateRange,
+    status: "SHIPPING",
+    deliveryType: "Store",
+    storeDeliveryType: "21",
+    shippingStatus: "All",
+  });
+
+  assert.deepEqual(requests.map((request) => request.sendInfo.status), ["1", "2", "3", "4", "5"]);
+  assert.ok(requests.every((request) => request.sendInfo.dely_gb === "21"));
 });
 
 test("momo SCM requires a proxy token when a proxy URL is configured", async () => {

@@ -39,6 +39,30 @@ test("momo 出貨中訂單對應到配送中，不計入待處理出貨", () => 
   assert.equal(orderStats(orders, "MOMO_MAIN").pendingShipment, 0);
 });
 
+/**
+ * 迴歸測試：mapper 過去把出貨中訂單一律標成「配送中」，
+ * 於是第三方物流不管查「已印單」還是「配送中」，畫面上都寫配送中。
+ * 細狀態要讀回應的 code_name，不是從查詢條件回推。
+ */
+test("momo 出貨中訂單以 code_name 作為細狀態", () => {
+  const [printed] = mapMomoShippingOrders([{ completeOrderNo: "MOMO-3", code_name: "已印單" }]);
+  const [shipping] = mapMomoShippingOrders([{ completeOrderNo: "MOMO-4", code_name: "配送中" }]);
+
+  assert.equal(printed.statusDetail, "已印單");
+  assert.equal(shipping.statusDetail, "配送中");
+  // 細狀態不影響正規化狀態，統計與樣式維持既有行為。
+  assert.equal(printed.status, "配送中");
+  assert.equal(orderStats([printed], "MOMO_MAIN").pendingShipment, 0);
+});
+
+test("momo 出貨中訂單沒有 code_name 時不編造文字", () => {
+  const [empty] = mapMomoShippingOrders([{ completeOrderNo: "MOMO-5", code_name: "" }]);
+  const [missing] = mapMomoShippingOrders([{ completeOrderNo: "MOMO-6" }]);
+
+  assert.equal(empty.statusDetail, undefined);
+  assert.equal(missing.statusDetail, undefined);
+});
+
 test("mo店+ 實際回傳的品項狀態對應到統一的訂單狀態", () => {
   assert.equal(toMoStorePlusOrderStatus("訂單接獲(未付款)"), "待付款");
   assert.equal(toMoStorePlusOrderStatus("出貨通知(已付款)"), "待發貨");

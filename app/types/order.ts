@@ -19,6 +19,13 @@ export interface OrderItem {
   items: { name: string; spec: string; qty: number; price: number }[];
   totalAmount: number;
   status: OrderStatus;
+  /**
+   * 可選：平台原始的細狀態文字（例如 momo 出貨中的「已印單」「待客戶取件」）。
+   *
+   * `status` 是跨平台正規化後的狀態，多個平台細狀態會併成同一個值；
+   * 細狀態放這裡另外顯示，畫面才不會把「已印單」和「配送中」講成同一件事。
+   */
+  statusDetail?: string;
   logistics: string;
   trackingNo: string;
   createdAt: string;

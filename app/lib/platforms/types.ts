@@ -1,6 +1,6 @@
 export type PlatformCode = "MOMO_MAIN" | "MO_STORE_PLUS";
 
-/** 訂單管理頁下拉選單的選項結構（狀態、配送類型、超取分類等）。 */
+/** 訂單查詢頁下拉選單的選項結構（狀態、配送類型、超取分類等）。 */
 export interface OrderStatusOption {
   /** 送進 connector 的狀態值，各平台自行解讀（多半直接轉給平台 API）。 */
   value: string;
@@ -9,6 +9,7 @@ export interface OrderStatusOption {
 
 export type DeliveryTypeOption = OrderStatusOption;
 export type StoreDeliveryTypeOption = OrderStatusOption;
+export type ShippingStatusOption = OrderStatusOption;
 
 export interface PlatformDefinition {
   code: PlatformCode;
@@ -26,6 +27,16 @@ export interface PlatformDefinition {
   storeDeliveryTypeOptions?: readonly StoreDeliveryTypeOption[];
   /** 可選：會顯示超取分類的配送類型值。 */
   storeDeliveryTypeForDeliveryTypes?: readonly string[];
+  /**
+   * 可選：出貨中細狀態選項，key 為配送類型值。
+   *
+   * 之所以依配送類型分組，是因為各配送方式的細狀態代碼並不共用
+   * （momo 超商取貨有五種、第三方物流只有兩種），沒有共同選項可用，
+   * 因此未選定單一配送類型時就不顯示這個欄位。
+   */
+  shippingStatusOptionsByDeliveryType?: Readonly<Record<string, readonly ShippingStatusOption[]>>;
+  /** 可選：會顯示出貨中細狀態的訂單狀態值。 */
+  shippingStatusForOrderStatuses?: readonly string[];
   logo: string;
   logoObjectFit: "contain" | "cover";
   color: string;

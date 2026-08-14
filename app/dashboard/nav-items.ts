@@ -6,6 +6,6 @@ import SettingsRounded from "@mui/icons-material/SettingsRounded";
 export const navItems = [
   { href: "/dashboard/products", label: "商品管理", icon: Inventory2Rounded },
   { href: "/dashboard/merge", label: "併單管理", icon: MergeTypeRounded },
-  { href: "/dashboard/orders", label: "訂單管理", icon: LocalMallRounded },
+  { href: "/dashboard/orders", label: "訂單查詢", icon: LocalMallRounded },
   { href: "/dashboard/settings", label: "設定", icon: SettingsRounded },
 ];

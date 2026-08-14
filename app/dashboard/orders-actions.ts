@@ -12,6 +12,7 @@ export interface OrderPageFilters {
   status?: string;
   deliveryType?: string;
   storeDeliveryType?: string;
+  shippingStatus?: string;
 }
 
 /** Loads orders for one enabled platform only. */
@@ -24,6 +25,7 @@ export async function loadOrdersPageData(
     status = "ALL",
     deliveryType = "All",
     storeDeliveryType = "All",
+    shippingStatus = "All",
   } = filters;
   const { from, to } = resolveOrderDateRange(dateRange);
   const enabledCodes = await listEnabledPlatformCodes();
@@ -39,5 +41,6 @@ export async function loadOrdersPageData(
     status,
     deliveryType,
     storeDeliveryType,
+    shippingStatus,
   });
 }

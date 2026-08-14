@@ -1,6 +1,6 @@
 import { allowedValuesFromEnvironment } from "./config";
 import type { PlatformConnector, PlatformOrderQuery } from "./connector";
-import { momoDefinition } from "./definitions";
+import { MOMO_SHIPPING_STATUS_OPTIONS, MOMO_STORE_DELIVERY_TYPE_OPTIONS, momoDefinition } from "./definitions";
 import { mapMomoShippingOrders, mapMomoUnshippedOrders } from "./momo-order-mapper";
 import { mapMomoGoodsBasicData } from "./momo-product-mapper";
 import { MomoScmClient } from "./momo-scm-client";
@@ -13,14 +13,27 @@ const saleGbByListingStatus: Record<ListingStatusFilter, string> = {
   DELISTED: "11",
 };
 
-const storeDeliveryTypes = ["21", "27", "28", "29", "2A", "2B"] as const;
-const shippingStoreStatuses = ["1", "2", "3", "4", "5"] as const;
-const shippingThirdPartyStatuses = ["1", "2"] as const;
+const storeDeliveryTypes = MOMO_STORE_DELIVERY_TYPE_OPTIONS.map((option) => option.value);
+// 細狀態代碼與下拉選單共用同一份定義，避免兩邊漏改而查到／標示成錯誤的狀態。
+const shippingStoreStatuses = MOMO_SHIPPING_STATUS_OPTIONS.Store.map((option) => option.value);
+const shippingThirdPartyStatuses = MOMO_SHIPPING_STATUS_OPTIONS.ThirdParty.map((option) => option.value);
 const supportedThirdPartyDeliveryTypes = ["61", "62", "63", "65"] as const;
 const supportedThirdPartyTemperatureTypes = ["01", "02", "03"] as const;
 
 type ThirdPartyDeliveryType = (typeof supportedThirdPartyDeliveryTypes)[number];
 type ThirdPartyTemperatureType = (typeof supportedThirdPartyTemperatureTypes)[number];
+
+/**
+ * 訂單頁的下拉選單以 "All" 表示不限縮；SCM 沒有對應的「全部」查詢值，
+ * 只能改用逐一查詢再合併的方式，因此這裡把選取值轉成要送出的查詢值清單。
+ */
+function selectedOrAll<T extends string>(supported: readonly T[], selected: string | undefined): readonly T[] {
+  return supported.includes(selected as T) ? [selected as T] : supported;
+}
+
+/** 未選定配送類型（"All"）時，兩種已串接的配送方式都要查。 */
+const includesStoreDelivery = (query: PlatformOrderQuery) => query.deliveryType !== "ThirdParty";
+const includesThirdPartyDelivery = (query: PlatformOrderQuery) => query.deliveryType !== "Store";
 
 export interface MomoConnectorOptions {
   /**
@@ -53,12 +66,19 @@ export function createMomoConnector(options: MomoConnectorOptions = {}): Platfor
       allowedValuesFromEnvironment("MOMO_SCM_THIRD_PARTY_TEMPERATURE_TYPES", supportedThirdPartyTemperatureTypes),
   });
 
+  /** 依「配送類型」與「超取分類」決定要查哪幾個超商代碼；未選超商取貨時完全不查。 */
+  const queriedStoreDeliveryTypes = (query: PlatformOrderQuery) =>
+    includesStoreDelivery(query) ? selectedOrAll(storeDeliveryTypes, query.storeDeliveryType) : [];
+
+  const queriedThirdPartyDeliveryTypes = (query: PlatformOrderQuery) =>
+    includesThirdPartyDelivery(query) ? thirdPartyScope().deliveryTypes : [];
+
   const fetchUnshipped = async (client: MomoScmClient, query: PlatformOrderQuery) => {
-    const { deliveryTypes, temperatureTypes } = thirdPartyScope();
+    const { temperatureTypes } = thirdPartyScope();
     const [storeOrders, thirdPartyOrders] = await Promise.all([
-      Promise.all(storeDeliveryTypes.map((delyGb) => client.queryUnshippedStoreOrders({ ...query, delyGb }))),
+      Promise.all(queriedStoreDeliveryTypes(query).map((delyGb) => client.queryUnshippedStoreOrders({ ...query, delyGb }))),
       Promise.all(
-        deliveryTypes.flatMap((delyGb) =>
+        queriedThirdPartyDeliveryTypes(query).flatMap((delyGb) =>
           temperatureTypes.map((delyTemp) => client.queryUnshippedThirdPartyOrders({ ...query, delyGb, delyTemp })),
         ),
       ),
@@ -67,16 +87,19 @@ export function createMomoConnector(options: MomoConnectorOptions = {}): Platfor
   };
 
   const fetchShipping = async (client: MomoScmClient, query: PlatformOrderQuery) => {
-    const { deliveryTypes } = thirdPartyScope();
     const [storeOrders, thirdPartyOrders] = await Promise.all([
       Promise.all(
-        storeDeliveryTypes.flatMap((delyGb) =>
-          shippingStoreStatuses.map((status) => client.queryShippingStoreOrders({ ...query, delyGb, status })),
+        queriedStoreDeliveryTypes(query).flatMap((delyGb) =>
+          selectedOrAll(shippingStoreStatuses, query.shippingStatus).map((status) =>
+            client.queryShippingStoreOrders({ ...query, delyGb, status }),
+          ),
         ),
       ),
       Promise.all(
-        deliveryTypes.flatMap((logistics) =>
-          shippingThirdPartyStatuses.map((status) => client.queryShippingThirdPartyOrders({ ...query, logistics, status })),
+        queriedThirdPartyDeliveryTypes(query).flatMap((logistics) =>
+          selectedOrAll(shippingThirdPartyStatuses, query.shippingStatus).map((status) =>
+            client.queryShippingThirdPartyOrders({ ...query, logistics, status }),
+          ),
         ),
       ),
     ]);

@@ -76,7 +76,15 @@ export default function OrderDetailDialog({ order, onClose, onCopy, copied }: Or
             <Chip label={order.channel} size="small" sx={{ ...channelStyle(order.channelCode), fontWeight: 800 }} />
             <Typography sx={{ fontSize: 18, fontWeight: 850 }}>訂單詳細內容 - {order.orderNo}</Typography>
           </Stack>
-          <Chip label={order.status} size="small" sx={{ ...statusStyle(order.status), fontWeight: 750 }} />
+          <Chip
+            label={
+              order.statusDetail && order.statusDetail !== order.status
+                ? `${order.status}／${order.statusDetail}`
+                : order.status
+            }
+            size="small"
+            sx={{ ...statusStyle(order.status), fontWeight: 750 }}
+          />
         </Stack>
       </DialogTitle>
       <Divider />

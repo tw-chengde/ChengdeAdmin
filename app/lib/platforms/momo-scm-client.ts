@@ -78,6 +78,13 @@ export interface MomoShippingOrder {
   cust_name_mask?: string;
   storeId?: string;
   storeDeliveryType?: MomoShippingStoreOrderQuery["delyGb"];
+  /**
+   * 這一列的出貨中細狀態名稱。
+   *
+   * 只有 sendingStoresQuery 與 sendingThirdQuery 這兩支出貨中查詢會回傳，
+   * 未出貨查詢沒有，因此 MomoUnshippedOrder 不會有對應欄位。
+   */
+  code_name?: string;
   storeName?: string;
   dely_gbStr?: string;
   slip_no?: string;

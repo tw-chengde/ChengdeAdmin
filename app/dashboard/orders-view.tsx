@@ -55,6 +55,7 @@ export default function OrdersView() {
   const [orderStatus, setOrderStatus] = useState("ALL");
   const [deliveryType, setDeliveryType] = useState("All");
   const [storeDeliveryType, setStoreDeliveryType] = useState("All");
+  const [shippingStatus, setShippingStatus] = useState("All");
   const runLatest = useLatestRequest();
 
   const {
@@ -76,6 +77,7 @@ export default function OrdersView() {
   const availableDeliveryTypeOptions = activePlatform?.deliveryTypeOptions ?? [];
   const availableStoreDeliveryTypeOptions = activePlatform?.storeDeliveryTypeOptions ?? [];
   const storeDeliveryTypeForDeliveryTypes = activePlatform?.storeDeliveryTypeForDeliveryTypes ?? [];
+  const shippingStatusForOrderStatuses = activePlatform?.shippingStatusForOrderStatuses ?? [];
 
   const selectedOrderStatus = availableOrderStatusOptions.some((option) => option.value === orderStatus)
     ? orderStatus
@@ -91,6 +93,14 @@ export default function OrdersView() {
       ? storeDeliveryType
       : "All";
 
+  // 細狀態的代碼各配送類型不同，因此只有在訂單狀態與配送類型都選定時才有選項可列。
+  const availableShippingStatusOptions = shippingStatusForOrderStatuses.includes(selectedOrderStatus)
+    ? (activePlatform?.shippingStatusOptionsByDeliveryType?.[selectedDeliveryType] ?? [])
+    : [];
+  const selectedShippingStatus = availableShippingStatusOptions.some((option) => option.value === shippingStatus)
+    ? shippingStatus
+    : "All";
+
   const handleSearch = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!channelTab) return;
@@ -103,6 +113,7 @@ export default function OrdersView() {
       status: selectedOrderStatus,
       deliveryType: selectedDeliveryType,
       storeDeliveryType: selectedStoreDeliveryType,
+      shippingStatus: selectedShippingStatus,
     }), {
       onSuccess: setOrders,
       onError: (error) => setLoadError(errorMessage(error, "Failed to load orders")),
@@ -136,7 +147,7 @@ export default function OrdersView() {
       >
         <Box>
           <Typography component="h1" sx={{ fontSize: { xs: 26, sm: 28 }, fontWeight: 850, letterSpacing: "-.03em" }}>
-            訂單管理
+            訂單查詢
           </Typography>
           <Typography color="text.secondary" sx={{ fontSize: 14, mt: 0.5 }}>
             整合 MOMO 購物網與 Mo 店+ 直營賣場，即時處理出貨與退換貨申請。
@@ -160,6 +171,7 @@ export default function OrdersView() {
             setOrderStatus(platform?.orderStatusOptions[0]?.value ?? "ALL");
             setDeliveryType(platform?.deliveryTypeOptions?.[0]?.value ?? "All");
             setStoreDeliveryType(platform?.storeDeliveryTypeOptions?.[0]?.value ?? "All");
+            setShippingStatus("All");
             pagination.resetPage();
           }}
           sx={{
@@ -300,6 +312,8 @@ export default function OrdersView() {
                     if (!storeDeliveryTypeForDeliveryTypes.includes(nextDeliveryType)) {
                       setStoreDeliveryType("All");
                     }
+                    // 細狀態代碼依配送類型而異，換配送類型後原本的選取值不再適用。
+                    setShippingStatus("All");
                     pagination.resetPage();
                   }}
                 >
@@ -320,6 +334,22 @@ export default function OrdersView() {
                   onChange={(event) => { setStoreDeliveryType(event.target.value); pagination.resetPage(); }}
                 >
                   {availableStoreDeliveryTypeOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+
+            {availableShippingStatusOptions.length > 0 && (
+              <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 160 } }}>
+                <InputLabel id="shipping-status-label">出貨中狀態</InputLabel>
+                <Select
+                  labelId="shipping-status-label"
+                  label="出貨中狀態"
+                  value={selectedShippingStatus}
+                  onChange={(event) => { setShippingStatus(event.target.value); pagination.resetPage(); }}
+                >
+                  {availableShippingStatusOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
                   ))}
                 </Select>
@@ -460,6 +490,10 @@ export default function OrdersView() {
 
                       <TableCell>
                         <Chip label={order.status} size="small" sx={{ ...st, fontWeight: 750, fontSize: 11.5 }} />
+                        {/* 正規化狀態把多個平台細狀態併成一個值，細狀態補在下面才看得出差別。 */}
+                        {order.statusDetail && order.statusDetail !== order.status && (
+                          <Typography sx={{ fontSize: 11, color: "#64748b", mt: 0.5 }}>{order.statusDetail}</Typography>
+                        )}
                       </TableCell>
 
                       <TableCell>

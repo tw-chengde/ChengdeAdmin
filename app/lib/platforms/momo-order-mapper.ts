@@ -1,18 +1,15 @@
 import type { OrderItem } from "@/app/types/order";
+import { MOMO_STORE_DELIVERY_TYPE_OPTIONS } from "./definitions";
 import { groupBy, normalizeOrderDate, toFiniteNumber } from "./mapper-utils";
 import type { MomoShippingOrder, MomoUnshippedOrder } from "./momo-scm-client";
 
-const storeBrandByDeliveryType: Record<NonNullable<MomoShippingOrder["storeDeliveryType"]>, string> = {
-  "21": "7-11",
-  "27": "全家",
-  "28": "7-11 店到店",
-  "29": "全家 店到店",
-  "2A": "OK mart",
-  "2B": "萊爾富",
-};
+/** 超商品牌名稱沿用「超取分類」下拉選單的標籤，兩邊才不會出現兩套超商名稱。 */
+const storeBrandByDeliveryType = new Map<string, string>(
+  MOMO_STORE_DELIVERY_TYPE_OPTIONS.map((option) => [option.value, option.label]),
+);
 
 function pickupStore(order: MomoShippingOrder): OrderItem["pickupStore"] {
-  const brand = order.storeDeliveryType ? storeBrandByDeliveryType[order.storeDeliveryType] : undefined;
+  const brand = order.storeDeliveryType ? storeBrandByDeliveryType.get(order.storeDeliveryType) : undefined;
   if (!brand) return undefined;
 
   return {
@@ -78,8 +75,12 @@ export function mapMomoShippingOrders(rows: MomoShippingOrder[]): OrderItem[] {
       address: "",
       items: orderItems,
       totalAmount: 0,
-      // 來自「出貨中訂單」查詢（sendingStoresQuery / sendingThirdQuery）。
+      // 來自「出貨中訂單」查詢（sendingStoresQuery / sendingThirdQuery），momo 把這幾種
+      // 細狀態都歸在出貨中，正規化後一律是「配送中」；code_name 是這一列實際的細狀態
+      // 名稱（只有這兩支查詢會回傳），另外放 statusDetail 顯示，才不會讓「已印單」的
+      // 訂單在畫面上看起來已經在路上。
       status: "配送中",
+      statusDetail: first.code_name || undefined,
       logistics: first.dely_gbStr ?? first.storeName ?? store?.brand ?? "",
       trackingNo: first.slip_no ?? "",
       createdAt: normalizeOrderDate(first.create_date),

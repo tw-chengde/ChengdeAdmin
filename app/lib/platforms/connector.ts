@@ -9,8 +9,10 @@ export interface PlatformOrderQuery {
   status?: string;
   /** 配送類型（例如 Mo 店+ 的 Home / Store）。 */
   deliveryType?: string;
-  /** 超取分類（例如 Mo 店+ 的 1 / 2）。 */
+  /** 超取分類（例如 Mo 店+ 的 1 / 2、momo 的 21 / 27）。 */
   storeDeliveryType?: string;
+  /** 出貨中訂單的細狀態（例如 momo 超商取貨的 1~5）；"All" 或未指定時查詢全部細狀態。 */
+  shippingStatus?: string;
 }
 
 /** 單一電商平台的訂單擷取邏輯（Strategy）。新增平台時實作一個新的 connector 並註冊進 registry.ts。 */
