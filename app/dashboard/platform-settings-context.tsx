@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { getAllPlatformDefinitions } from "@/app/lib/platforms/definitions";
 import type { PlatformCode, PlatformDefinition } from "@/app/lib/platforms/types";
 import type { PlatformMutationResult, PlatformStatus } from "@/app/types/platform";
+import LoadingBackdrop from "./loading-backdrop";
 import { listPlatformStatuses, setPlatformEnabled } from "./platforms-actions";
 
 interface PlatformSettingsContextValue {
@@ -69,7 +70,12 @@ export function PlatformSettingsProvider({ children }: { children: ReactNode }) 
     [statuses, enabledPlatforms, loading, error, refresh, toggle],
   );
 
-  return <PlatformSettingsContext.Provider value={value}>{children}</PlatformSettingsContext.Provider>;
+  return (
+    <PlatformSettingsContext.Provider value={value}>
+      {children}
+      <LoadingBackdrop open={loading} message="正在載入平台設定，請稍候..." />
+    </PlatformSettingsContext.Provider>
+  );
 }
 
 export function usePlatformSettings(): PlatformSettingsContextValue {

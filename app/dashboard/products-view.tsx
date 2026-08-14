@@ -12,7 +12,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   IconButton,
   Paper,
   Stack,
@@ -29,6 +28,7 @@ import { useProductsAdmin } from "@/app/hooks/useProductsAdmin";
 import ConfirmDialog from "./confirm-dialog";
 import MergeLimitChip from "./merge-limit-chip";
 import ProductFormDialog from "./product-form-dialog";
+import LoadingBackdrop from "./loading-backdrop";
 import { headCell, stickyActionCell } from "./table-styles";
 
 export default function ProductsView() {
@@ -147,13 +147,7 @@ export default function ProductsView() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
-                    <CircularProgress size={22} sx={{ color: "#d65730" }} />
-                  </TableCell>
-                </TableRow>
-              ) : products.length === 0 ? (
+              {products.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                     <Typography color="text.secondary" sx={{ fontSize: 14 }}>
@@ -271,6 +265,8 @@ export default function ProductsView() {
       >
         確定要刪除商品「{remove.target?.name}」（{remove.target?.code}）嗎？此動作無法復原。
       </ConfirmDialog>
+
+      <LoadingBackdrop open={loading} message="正在載入商品資料，請稍候..." />
     </Box>
   );
 }

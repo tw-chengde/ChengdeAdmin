@@ -43,6 +43,7 @@ import OrderDetailDialog from "./order-detail-dialog";
 import { pickupStoreLabel } from "./order-format";
 import { usePlatformSettings } from "./platform-settings-context";
 import { headCell } from "./table-styles";
+import LoadingBackdrop from "./loading-backdrop";
 
 export default function OrdersView() {
   const { enabledPlatforms } = usePlatformSettings();
@@ -386,7 +387,13 @@ export default function OrdersView() {
                 "& .MuiOutlinedInput-root": { bgcolor: "#f8fafc", "& fieldset": { borderColor: "#eaecf0" } },
               }}
             />
-            <Button type="submit" variant="contained" startIcon={<SearchRounded />} sx={{ px: 2.5, whiteSpace: "nowrap" }}>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={loading}
+              startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <SearchRounded />}
+              sx={{ px: 2.5, whiteSpace: "nowrap" }}
+            >
               載入訂單
             </Button>
           </Stack>
@@ -407,13 +414,7 @@ export default function OrdersView() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
-                    <CircularProgress size={22} />
-                  </TableCell>
-                </TableRow>
-              ) : !hasSearched ? (
+              {!hasSearched ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                     <Typography color="text.secondary" sx={{ fontSize: 14 }}>
@@ -540,6 +541,8 @@ export default function OrdersView() {
         onCopy={copyToClipboard}
         copied={copiedText}
       />
+
+      <LoadingBackdrop open={loading} message="正在查詢訂單資料，請稍候..." />
     </Box>
   );
 }

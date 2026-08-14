@@ -37,6 +37,7 @@ import { bindingKey, productLabel, type BindingFilter } from "@/app/utils/produc
 import BindProductDialog from "./bind-product-dialog";
 import ConfirmDialog from "./confirm-dialog";
 import MergeLimitChip from "./merge-limit-chip";
+import LoadingBackdrop from "./loading-backdrop";
 import { headCell, stickyActionCell } from "./table-styles";
 
 function StatCard({ label, value, hint, color }: { label: string; value: number; hint: string; color?: string }) {
@@ -286,13 +287,7 @@ export default function MergeBindingsView() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
-                    <CircularProgress size={22} sx={{ color: "#d65730" }} />
-                  </TableCell>
-                </TableRow>
-              ) : pagination.pagedItems.length === 0 ? (
+              {pagination.pagedItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                     <Typography color="text.secondary" sx={{ fontSize: 14 }}>
@@ -454,6 +449,8 @@ export default function MergeBindingsView() {
           {merge.snackbar.message}
         </Alert>
       </Snackbar>
+
+      <LoadingBackdrop open={loading} message="正在查詢平台商品資料，請稍候..." />
     </Box>
   );
 }
