@@ -150,26 +150,65 @@ test.each([
   await assert.rejects(fetch(client), new RegExp(`mo店\\+ ${what}查詢失敗：token 已過期`));
 });
 
-test("mo店+ connector 在 STATISTICS 查詢時帶入 OrderDate 與 All", async () => {
-  let body: Record<string, unknown> | undefined;
+/** 以固定的訂單回應建立 connector，並記錄最後一次送出的查詢條件。 */
+function connectorReturning(listOrder: unknown[]) {
+  const sent: { body?: Record<string, unknown> } = {};
   const connector = createMoStorePlusConnector({
     createClient: () =>
       new MoStorePlusClient({
         fetchImpl: async (_input, init) => {
-          body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-          return new Response(JSON.stringify({ listOrder: [] }));
+          sent.body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return new Response(JSON.stringify({ listOrder, totalOrders: listOrder.length }));
         },
       }),
   });
+  return { connector, sent };
+}
 
-  await connector.fetchOrders({
-    from: new Date("2026-08-01"),
-    to: new Date("2026-08-14"),
-    status: "STATISTICS",
-  });
+const salesRange = { from: new Date("2026-08-01"), to: new Date("2026-08-14") };
 
-  assert.equal(body?.queryDateType, "OrderDate");
-  assert.equal(body?.orderStatus, "All");
+test("mo店+ 銷售統計以下單日查詢全部狀態的訂單", async () => {
+  const { connector, sent } = connectorReturning([]);
+
+  await connector.fetchSalesStatistics(salesRange);
+
+  assert.equal(sent.body?.queryDateType, "OrderDate");
+  assert.equal(sent.body?.orderStatus, "All");
+  assert.equal(sent.body?.deliveryType, "All");
+});
+
+/** 一張只有單一品項的訂單，用來組銷售統計的測試資料。 */
+function orderRecord(orderNo: string, lastProcDate: string, itemStatus: string, orderAmount: number) {
+  return { orderNo, listItem: [{ itemStatus, orderAmount, quantity: 1, lastProcDate }] };
+}
+
+// mo店+ 回得出逐筆訂單，總覽的走勢圖就該看得到它每一天的業績。
+test("mo店+ 銷售統計彙總營收、筆數與逐日走勢", async () => {
+  const { connector } = connectorReturning([
+    orderRecord("MS-1", "2026/08/01", "配送結束", 2000),
+    orderRecord("MS-2", "2026/08/01", "配送結束", 1000),
+    orderRecord("MS-3", "2026/08/03", "客戶取消", 500),
+  ]);
+
+  const stats = await connector.fetchSalesStatistics(salesRange);
+
+  assert.equal(stats.revenue, 3500);
+  assert.equal(stats.orderCount, 3);
+  assert.equal(stats.returnCount, 1);
+  assert.deepEqual(stats.daily, [
+    { date: "2026-08-01", revenue: 3000, orderCount: 2 },
+    { date: "2026-08-03", revenue: 500, orderCount: 1 },
+  ]);
+});
+
+test("mo店+ 待出貨單數只算正規化後為待發貨的訂單", async () => {
+  const { connector } = connectorReturning([
+    orderRecord("MS-1", "2026/08/01", "出貨通知(已付款)", 100),
+    orderRecord("MS-2", "2026/08/01", "出貨通知(已付款)", 100),
+    orderRecord("MS-3", "2026/08/02", "配送結束", 100),
+  ]);
+
+  assert.equal(await connector.fetchPendingShipmentCount(salesRange), 2);
 });
 
 test("mo店+ 商品查詢逐頁抓到 totalGoods 為止，並彙總單品的庫存與售價", async () => {

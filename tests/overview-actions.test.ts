@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { beforeEach, test, vi } from "vitest";
+import { afterEach, beforeEach, test, vi } from "vitest";
 import type { PlatformConnector } from "@/app/lib/platforms/connector";
 import { momoDefinition, moStorePlusDefinition } from "@/app/lib/platforms/definitions";
-import type { PlatformCode } from "@/app/lib/platforms/types";
-import type { OrderItem } from "@/app/types/order";
+import type { PlatformSalesQuery, PlatformSalesStatistics } from "@/app/lib/platforms/sales";
+import type { PlatformCode, PlatformDefinition } from "@/app/lib/platforms/types";
 
 const listEnabledPlatformCodesMock = vi.fn<() => Promise<PlatformCode[]>>();
 const getConnectorMock = vi.fn<(code: PlatformCode) => PlatformConnector | undefined>();
@@ -27,90 +27,112 @@ vi.mock("@/app/lib/platforms/definitions", async (importOriginal) => {
 
 const { loadOverviewData } = await import("@/app/dashboard/overview-actions");
 
+function statsOf(revenue: number, orderCount: number, daily: PlatformSalesStatistics["daily"] = []) {
+  return { revenue, orderCount, returnCount: 0, daily };
+}
+
+/** 依查詢區間回傳不同統計，才驗得出 action 有把三個區間分別問過。 */
+function connectorWith(
+  definition: PlatformDefinition,
+  byRange: Record<string, PlatformSalesStatistics>,
+  pendingShipmentCount = 0,
+) {
+  const fetchSalesStatistics = vi.fn(async (query: PlatformSalesQuery) => {
+    const key = `${query.from.toISOString().slice(0, 10)}~${query.to.toISOString().slice(0, 10)}`;
+    return byRange[key] ?? statsOf(0, 0);
+  });
+  const fetchPendingShipmentCount = vi.fn(async () => pendingShipmentCount);
+  const connector: PlatformConnector = {
+    definition,
+    fetchOrders: vi.fn().mockResolvedValue([]),
+    fetchProducts: vi.fn().mockResolvedValue([]),
+    fetchSalesStatistics,
+    fetchPendingShipmentCount,
+  };
+  return { connector, fetchSalesStatistics, fetchPendingShipmentCount };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // 只假造 Date，避免動到 timer 影響 await 的排程。
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-08-14T10:00:00+08:00"));
   getAllPlatformDefinitionsMock.mockReturnValue([momoDefinition, moStorePlusDefinition]);
 });
 
-test("loadOverviewData queries enabled platforms and computes overview metrics", async () => {
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/** 台北時區 2026-08-14 當下的三個查詢區間，以 UTC 日期表示（區間起點 00:00+08:00 落在前一天 UTC）。 */
+const currentMonthKey = "2026-07-31~2026-08-14";
+const lastMonthKey = "2026-06-30~2026-07-31";
+const lastSamePeriodKey = "2026-06-30~2026-07-14";
+
+test("loadOverviewData 向每個已啟用平台問三個區間的銷售統計並彙總", async () => {
   listEnabledPlatformCodesMock.mockResolvedValue(["MOMO_MAIN", "MO_STORE_PLUS"]);
 
-  const mockMomoOrders: OrderItem[] = [
+  const momo = connectorWith(
+    momoDefinition,
     {
-      id: "momo:1",
-      channel: "MOMO 購物網",
-      channelCode: "MOMO_MAIN",
-      orderNo: "MO-1",
-      customerName: "顧客A",
-      address: "台北",
-      items: [],
-      totalAmount: 3000,
-      status: "待發貨",
-      logistics: "宅配",
-      trackingNo: "T1",
-      createdAt: "2026-08-01 12:00",
+      [currentMonthKey]: statsOf(3000, 3),
+      [lastMonthKey]: statsOf(2000, 2),
+      [lastSamePeriodKey]: statsOf(1000, 1),
     },
-  ];
-
-  const mockMoStoreOrders: OrderItem[] = [
-    {
-      id: "mo-store-plus:1",
-      channel: "Mo 店+",
-      channelCode: "MO_STORE_PLUS",
-      orderNo: "MS-1",
-      customerName: "顧客B",
-      address: "新北",
-      items: [],
-      totalAmount: 2000,
-      status: "已完成",
-      logistics: "超取",
-      trackingNo: "T2",
-      createdAt: "2026-08-02 12:00",
-    },
-  ];
-
-  const momoConnector: PlatformConnector = {
-    definition: momoDefinition,
-    fetchOrders: vi.fn().mockResolvedValue(mockMomoOrders),
-    fetchProducts: vi.fn().mockResolvedValue([]),
-  };
-
-  const moStorePlusConnector: PlatformConnector = {
-    definition: moStorePlusDefinition,
-    fetchOrders: vi.fn().mockResolvedValue(mockMoStoreOrders),
-    fetchProducts: vi.fn().mockResolvedValue([]),
-  };
+    4,
+  );
+  const moStorePlus = connectorWith(moStorePlusDefinition, {
+    [currentMonthKey]: statsOf(2000, 1, [{ date: "2026-08-02", revenue: 2000, orderCount: 1 }]),
+  });
 
   getConnectorMock.mockImplementation((code) => {
-    if (code === "MOMO_MAIN") return momoConnector;
-    if (code === "MO_STORE_PLUS") return moStorePlusConnector;
+    if (code === "MOMO_MAIN") return momo.connector;
+    if (code === "MO_STORE_PLUS") return moStorePlus.connector;
     return undefined;
   });
 
   const metrics = await loadOverviewData();
 
-  // 當月加總營收：3000 + 2000 = 5000
   assert.equal(metrics.currentMonthRevenue, 5000);
-  assert.equal(metrics.currentMonthOrders, 2);
+  assert.equal(metrics.currentMonthOrders, 4);
+  assert.equal(metrics.lastMonthRevenue, 2000);
+  assert.equal(metrics.lastMonthSamePeriodRevenue, 1000);
   assert.equal(metrics.platformStats.length, 2);
+  assert.equal(metrics.pendingShipments, 4);
+  assert.equal(momo.fetchSalesStatistics.mock.calls.length, 3);
+  // 待出貨是當下的營運狀態，只問當月一次。
+  assert.equal(momo.fetchPendingShipmentCount.mock.calls.length, 1);
 });
 
 test("loadOverviewData skips disabled platforms", async () => {
-  // 僅啟用 MOMO
   listEnabledPlatformCodesMock.mockResolvedValue(["MOMO_MAIN"]);
 
-  const momoConnector: PlatformConnector = {
-    definition: momoDefinition,
-    fetchOrders: vi.fn().mockResolvedValue([]),
-    fetchProducts: vi.fn().mockResolvedValue([]),
-  };
-
-  getConnectorMock.mockImplementation((code) => {
-    if (code === "MOMO_MAIN") return momoConnector;
-    return undefined;
-  });
+  const momo = connectorWith(momoDefinition, {});
+  getConnectorMock.mockImplementation((code) => (code === "MOMO_MAIN" ? momo.connector : undefined));
 
   const metrics = await loadOverviewData();
   assert.equal(metrics.platformStats.length, 1);
   assert.equal(metrics.platformStats[0]?.code, "MOMO_MAIN");
+});
+
+// 一個平台的 API 掛掉時，總覽仍要顯示其他平台的數字，而不是整頁失敗。
+test("loadOverviewData 在單一平台查詢失敗時以零值代入", async () => {
+  listEnabledPlatformCodesMock.mockResolvedValue(["MOMO_MAIN", "MO_STORE_PLUS"]);
+
+  const failing: PlatformConnector = {
+    definition: momoDefinition,
+    fetchOrders: vi.fn().mockResolvedValue([]),
+    fetchProducts: vi.fn().mockResolvedValue([]),
+    fetchSalesStatistics: vi.fn().mockRejectedValue(new Error("momo SCM 憑證錯誤")),
+    fetchPendingShipmentCount: vi.fn().mockRejectedValue(new Error("momo SCM 憑證錯誤")),
+  };
+  const working = connectorWith(moStorePlusDefinition, { [currentMonthKey]: statsOf(1200, 2) });
+
+  getConnectorMock.mockImplementation((code) => (code === "MOMO_MAIN" ? failing : working.connector));
+
+  const metrics = await loadOverviewData();
+
+  assert.equal(metrics.currentMonthRevenue, 1200);
+  assert.equal(metrics.platformStats.find((s) => s.code === "MOMO_MAIN")?.currentMonthRevenue, 0);
+  assert.equal(metrics.pendingShipments, 0);
 });

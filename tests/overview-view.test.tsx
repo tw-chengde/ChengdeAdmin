@@ -64,6 +64,7 @@ const mockMetrics: OverviewMetrics = {
     { date: "2026-08-01", label: "8/1", day: 1, revenue: 15000, orderCount: 8, cumulativeRevenue: 15000 },
     { date: "2026-08-02", label: "8/2", day: 2, revenue: 20000, orderCount: 10, cumulativeRevenue: 35000 },
   ],
+  dailyTrendUncoveredPlatforms: [],
   currentMonthLabel: "8月迄今",
   lastMonthLabel: "7月全月",
 };
@@ -109,6 +110,24 @@ test("allows reloading data when clicking the refresh button", async () => {
   await user.click(refreshButton);
 
   await waitFor(() => assert.equal(loadOverviewData.mock.calls.length, 2));
+});
+
+/**
+ * momo 的接單統計 API 不回日期，走勢圖因此永遠少掉 momo 的業績。
+ * 補不了，但要標在圖上，使用者才不會拿走勢累計去對當月營收 KPI。
+ */
+test("走勢圖標註未涵蓋的平台", async () => {
+  loadOverviewData.mockResolvedValue({ ...mockMetrics, dailyTrendUncoveredPlatforms: ["MOMO 購物網"] });
+  render(<OverviewView />);
+
+  assert.ok(await screen.findByText("不含 MOMO 購物網（該平台未提供每日資料）"));
+});
+
+test("平台都有逐日資料時不顯示未涵蓋提示", async () => {
+  render(<OverviewView />);
+
+  await screen.findByText("NT$ 125,000");
+  assert.equal(screen.queryByText(/該平台未提供每日資料/), null);
 });
 
 test("displays error alert if loadOverviewData fails", async () => {

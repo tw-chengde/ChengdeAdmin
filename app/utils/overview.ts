@@ -1,5 +1,5 @@
+import type { PlatformSalesStatistics } from "@/app/lib/platforms/sales";
 import type { PlatformDefinition } from "@/app/lib/platforms/types";
-import type { OrderItem } from "@/app/types/order";
 
 export interface OverviewDateRange {
   startDate: string;
@@ -59,8 +59,25 @@ export interface OverviewMetrics {
   rmaCount: number;
   platformStats: PlatformOverviewStat[];
   dailyTrends: DailySalesTrendItem[];
+  /**
+   * 當月有業績、但 API 不提供日期而進不了逐日走勢的平台名稱。
+   *
+   * 這些平台的業績仍計入 KPI 卡，走勢圖卻看不到，累計金額因此對不上當月營收。
+   * 這是平台 API 的限制補不了，但要講出來，畫面才能標註而不是讓使用者自己發現兜不攏。
+   */
+  dailyTrendUncoveredPlatforms: string[];
   currentMonthLabel: string;
   lastMonthLabel: string;
+}
+
+/** 單一平台餵給總覽的原始數字。跨平台的佔比與成長率由 calculateOverviewMetrics 算。 */
+export interface PlatformOverviewInput {
+  definition: PlatformDefinition;
+  currentMonth: PlatformSalesStatistics;
+  lastMonth: PlatformSalesStatistics;
+  lastMonthSamePeriod: PlatformSalesStatistics;
+  /** 當月待出貨單數。 */
+  pendingShipmentCount: number;
 }
 
 function parseTaipeiDate(value: string, endOfDay: boolean): Date {
@@ -133,127 +150,93 @@ export function getOverviewDateRanges(referenceDate = new Date()): OverviewDateR
   };
 }
 
-function extractDatePrefix(createdAt: string): string {
-  const match = createdAt.match(/^\d{4}-\d{2}-\d{2}/);
-  return match ? match[0] : createdAt.slice(0, 10);
-}
+const sumBy = <T>(items: T[], valueOf: (item: T) => number) => items.reduce((sum, item) => sum + valueOf(item), 0);
 
-function countEffectiveOrders(orders: OrderItem[]): number {
-  return orders.reduce((sum, order) => {
-    if (order.channelCode === "MOMO_MAIN") {
-      const itemsQty = order.items.reduce((s, it) => s + (it.qty > 0 ? it.qty : 0), 0);
-      return sum + (itemsQty > 0 ? itemsQty : 1);
-    }
-    return sum + 1;
-  }, 0);
-}
+const averageOrderValue = (revenue: number, orderCount: number) =>
+  orderCount > 0 ? Math.round(revenue / orderCount) : 0;
+
+/** 相對上月同期的成長率（百分比，一位小數）；基期為零時無從比較，回 null。 */
+const growthRate = (current: number, base: number) =>
+  base > 0 ? Math.round(((current - base) / base) * 1000) / 10 : null;
 
 /**
  * 計算跨平台加總總覽指標與每日趨勢。純函式，方便測試與共用。
  */
 export function calculateOverviewMetrics(
-  currentMonthOrders: OrderItem[],
-  lastMonthOrders: OrderItem[],
-  platforms: PlatformDefinition[],
+  platforms: PlatformOverviewInput[],
   dateRanges: OverviewDateRanges = getOverviewDateRanges(),
-  explicitLastMonthSamePeriodOrders?: OrderItem[],
 ): OverviewMetrics {
-  const currentMonthRevenue = currentMonthOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-  const lastMonthRevenue = lastMonthOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const currentMonthRevenue = sumBy(platforms, (p) => p.currentMonth.revenue);
+  const lastMonthRevenue = sumBy(platforms, (p) => p.lastMonth.revenue);
+  const lastMonthSamePeriodRevenue = sumBy(platforms, (p) => p.lastMonthSamePeriod.revenue);
 
-  // 上月同期業績：若有獨立查詢傳入則直接使用，否則從上月全月訂單依日期篩選
-  const lastMonthSamePeriodMaxDate = dateRanges.lastMonthSamePeriod.endDate;
-  const lastMonthSamePeriodOrders =
-    explicitLastMonthSamePeriodOrders ??
-    lastMonthOrders.filter((order) => {
-      const orderDate = extractDatePrefix(order.createdAt);
-      return orderDate ? orderDate <= lastMonthSamePeriodMaxDate : false;
-    });
-  const lastMonthSamePeriodRevenue = lastMonthSamePeriodOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const currentMonthOrdersCount = sumBy(platforms, (p) => p.currentMonth.orderCount);
+  const lastMonthOrdersCount = sumBy(platforms, (p) => p.lastMonth.orderCount);
+  const lastMonthSamePeriodOrdersCount = sumBy(platforms, (p) => p.lastMonthSamePeriod.orderCount);
 
-  const currentMonthOrdersCount = countEffectiveOrders(currentMonthOrders);
-  const lastMonthOrdersCount = countEffectiveOrders(lastMonthOrders);
-  const lastMonthSamePeriodOrdersCount = countEffectiveOrders(lastMonthSamePeriodOrders);
+  const currentMonthAov = averageOrderValue(currentMonthRevenue, currentMonthOrdersCount);
+  const lastMonthAov = averageOrderValue(lastMonthRevenue, lastMonthOrdersCount);
 
-  const currentMonthAov = currentMonthOrdersCount > 0 ? Math.round(currentMonthRevenue / currentMonthOrdersCount) : 0;
-  const lastMonthAov = lastMonthOrdersCount > 0 ? Math.round(lastMonthRevenue / lastMonthOrdersCount) : 0;
+  const revenueGrowthRate = growthRate(currentMonthRevenue, lastMonthSamePeriodRevenue);
+  const ordersGrowthRate = growthRate(currentMonthOrdersCount, lastMonthSamePeriodOrdersCount);
 
-  // 與上月同期相比的成長率；若上月同期無營收則回傳 null
-  const revenueGrowthRate =
-    lastMonthSamePeriodRevenue > 0
-      ? Math.round(((currentMonthRevenue - lastMonthSamePeriodRevenue) / lastMonthSamePeriodRevenue) * 1000) / 10
-      : null;
+  const pendingShipments = sumBy(platforms, (p) => p.pendingShipmentCount);
+  const rmaCount = sumBy(platforms, (p) => p.currentMonth.returnCount);
 
-  const ordersGrowthRate =
-    lastMonthSamePeriodOrdersCount > 0
-      ? Math.round(((currentMonthOrdersCount - lastMonthSamePeriodOrdersCount) / lastMonthSamePeriodOrdersCount) * 1000) / 10
-      : null;
+  const platformStats: PlatformOverviewStat[] = platforms.map(({ definition, currentMonth, lastMonth, pendingShipmentCount }) => ({
+    code: definition.code,
+    name: definition.name,
+    logo: definition.logo,
+    logoObjectFit: definition.logoObjectFit,
+    color: definition.color,
+    bgcolor: definition.bgcolor,
+    borderColor: definition.borderColor,
+    currentMonthRevenue: currentMonth.revenue,
+    lastMonthRevenue: lastMonth.revenue,
+    currentMonthOrders: currentMonth.orderCount,
+    lastMonthOrders: lastMonth.orderCount,
+    currentMonthAov: averageOrderValue(currentMonth.revenue, currentMonth.orderCount),
+    lastMonthAov: averageOrderValue(lastMonth.revenue, lastMonth.orderCount),
+    sharePercentage:
+      currentMonthRevenue > 0 ? Math.round((currentMonth.revenue / currentMonthRevenue) * 1000) / 10 : 0,
+    pendingShipment: pendingShipmentCount,
+  }));
 
-  const pendingShipments = currentMonthOrders.filter((order) => order.status === "待發貨").length;
-  const rmaCount = currentMonthOrders.filter((order) => order.status === "退貨申請" || order.status === "已取消").length;
+  // 把各平台的逐日銷售併成一張日期表，再展開成 1 號到今日的連續走勢。
+  const salesByDate = new Map<string, { revenue: number; orderCount: number }>();
+  for (const platform of platforms) {
+    for (const day of platform.currentMonth.daily) {
+      const totals = salesByDate.get(day.date) ?? { revenue: 0, orderCount: 0 };
+      totals.revenue += day.revenue;
+      totals.orderCount += day.orderCount;
+      salesByDate.set(day.date, totals);
+    }
+  }
 
-  // 各平台分組統計
-  const platformStats: PlatformOverviewStat[] = platforms.map((platform) => {
-    const currentOrders = currentMonthOrders.filter((order) => order.channelCode === platform.code);
-    const lastOrders = lastMonthOrders.filter((order) => order.channelCode === platform.code);
-
-    const platformCurrentRevenue = currentOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-    const platformLastRevenue = lastOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-
-    const platformCurrentOrders = countEffectiveOrders(currentOrders);
-    const platformLastOrders = countEffectiveOrders(lastOrders);
-
-    const platformCurrentAov =
-      platformCurrentOrders > 0 ? Math.round(platformCurrentRevenue / platformCurrentOrders) : 0;
-    const platformLastAov = platformLastOrders > 0 ? Math.round(platformLastRevenue / platformLastOrders) : 0;
-
-    const sharePercentage =
-      currentMonthRevenue > 0 ? Math.round((platformCurrentRevenue / currentMonthRevenue) * 1000) / 10 : 0;
-
-    const platformPending = currentOrders.filter((order) => order.status === "待發貨").length;
-
-    return {
-      code: platform.code,
-      name: platform.name,
-      logo: platform.logo,
-      logoObjectFit: platform.logoObjectFit,
-      color: platform.color,
-      bgcolor: platform.bgcolor,
-      borderColor: platform.borderColor,
-      currentMonthRevenue: platformCurrentRevenue,
-      lastMonthRevenue: platformLastRevenue,
-      currentMonthOrders: platformCurrentOrders,
-      lastMonthOrders: platformLastOrders,
-      currentMonthAov: platformCurrentAov,
-      lastMonthAov: platformLastAov,
-      sharePercentage,
-      pendingShipment: platformPending,
-    };
-  });
-
-  // 當月每日趨勢（從 1 號到今日）
+  const { currentYear, currentMonthNumber, todayDay } = dateRanges;
   const dailyTrends: DailySalesTrendItem[] = [];
   let cumulative = 0;
-  const { currentYear, currentMonthNumber, todayDay } = dateRanges;
 
   for (let day = 1; day <= todayDay; day += 1) {
-    const dayStr = String(day).padStart(2, "0");
     const monthStr = String(currentMonthNumber).padStart(2, "0");
-    const dateKey = `${currentYear}-${monthStr}-${dayStr}`;
-
-    const dayOrders = currentMonthOrders.filter((order) => extractDatePrefix(order.createdAt) === dateKey);
-    const dayRevenue = dayOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-    cumulative += dayRevenue;
+    const dateKey = `${currentYear}-${monthStr}-${String(day).padStart(2, "0")}`;
+    const totals = salesByDate.get(dateKey) ?? { revenue: 0, orderCount: 0 };
+    cumulative += totals.revenue;
 
     dailyTrends.push({
       date: dateKey,
       label: `${currentMonthNumber}/${day}`,
       day,
-      revenue: dayRevenue,
-      orderCount: countEffectiveOrders(dayOrders),
+      revenue: totals.revenue,
+      orderCount: totals.orderCount,
       cumulativeRevenue: cumulative,
     });
   }
+
+  // 有業績卻沒有任何逐日資料的平台，就是走勢圖看不到的那些。
+  const dailyTrendUncoveredPlatforms = platforms
+    .filter((platform) => platform.currentMonth.revenue > 0 && platform.currentMonth.daily.length === 0)
+    .map((platform) => platform.definition.name);
 
   return {
     currentMonthRevenue,
@@ -269,6 +252,7 @@ export function calculateOverviewMetrics(
     rmaCount,
     platformStats,
     dailyTrends,
+    dailyTrendUncoveredPlatforms,
     currentMonthLabel: `${currentMonthNumber}月迄今`,
     lastMonthLabel: `${dateRanges.lastMonthNumber}月全月`,
   };

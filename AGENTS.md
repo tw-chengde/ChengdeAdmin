@@ -32,6 +32,16 @@ inject a fake client instead of setting `process.env` and overwriting
 environment variable, and whether it is required), `platform-http.ts` (the
 POST-JSON transport and its error messages), and `mapper-utils.ts` (the
 value-coercion and grouping helpers every mapper needs).
+
+`connector.ts` deliberately separates the order-level and statistics-level
+queries. `fetchOrders` returns real `OrderItem`s for the orders page;
+`fetchSalesStatistics` returns a `PlatformSalesStatistics` aggregate
+(`sales.ts`) for the overview, because some platforms only expose
+goods-level totals with no dates and no order identity. Do not smuggle a
+use case through `PlatformOrderQuery.status` — that field carries a
+platform-native status value, and a sentinel there forces the connector to
+dress non-orders up as orders. `summarizeOrders` in `sales.ts` gives any
+platform that does return orders the shared aggregation.
 Documentation, OpenAPI schemas, and platform integration guides are index-mapped in [docs/AGENTS.md](./docs/AGENTS.md).
 Before implementing or changing an integration with a third-party platform API,
 read the applicable specification in `docs/` and implement against that

@@ -4,6 +4,7 @@ import { MoStorePlusClient } from "./mo-store-plus-client";
 import { mapMoStorePlusOrders } from "./mo-store-plus-order-mapper";
 import { mapMoStorePlusGoods } from "./mo-store-plus-product-mapper";
 import type { ListingStatusFilter } from "./product";
+import { summarizeOrders, type PlatformSalesQuery } from "./sales";
 
 /** 商品狀態查詢條件對應 mo店+ 的 saleStatus。 */
 const saleStatusByListingStatus: Record<ListingStatusFilter, string> = {
@@ -29,13 +30,24 @@ export interface MoStorePlusConnectorOptions {
 export function createMoStorePlusConnector(options: MoStorePlusConnectorOptions = {}): PlatformConnector {
   const createClient = options.createClient ?? (() => MoStorePlusClient.fromEnvironment());
 
+  /** 區間內全部狀態的訂單；銷售統計與待出貨數都是從這一份推導出來的。 */
+  const fetchAllOrders = async (query: PlatformSalesQuery) =>
+    mapMoStorePlusOrders(
+      await createClient().fetchOrders({
+        ...query,
+        orderStatus: "All",
+        deliveryType: "All",
+        storeDeliveryType: "All",
+      }),
+    );
+
   return {
     definition: moStorePlusDefinition,
     async fetchOrders(query) {
       return mapMoStorePlusOrders(
         await createClient().fetchOrders({
           ...query,
-          orderStatus: query.status === "ALL" || query.status === "STATISTICS" ? "All" : query.status,
+          orderStatus: query.status === "ALL" ? "All" : query.status,
           deliveryType: query.deliveryType ?? "All",
           storeDeliveryType: query.storeDeliveryType ?? "All",
         }),
@@ -44,6 +56,14 @@ export function createMoStorePlusConnector(options: MoStorePlusConnectorOptions 
     async fetchProducts(query) {
       const saleStatus = saleStatusByListingStatus[query.listingStatus];
       return mapMoStorePlusGoods(await createClient().fetchGoods({ saleStatus }));
+    },
+    async fetchSalesStatistics(query) {
+      return summarizeOrders(await fetchAllOrders(query));
+    },
+    async fetchPendingShipmentCount(query) {
+      // 平台的 NotShipped／Printed 都對應到統一狀態的「待發貨」，
+      // 用正規化後的狀態來數，才不會漏掉其中一種。
+      return (await fetchAllOrders(query)).filter((order) => order.status === "待發貨").length;
     },
   };
 }

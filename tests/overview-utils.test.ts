@@ -1,99 +1,40 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { momoDefinition, moStorePlusDefinition } from "@/app/lib/platforms/definitions";
-import type { OrderItem } from "@/app/types/order";
+import type { PlatformSalesStatistics } from "@/app/lib/platforms/sales";
 import {
   calculateOverviewMetrics,
   getOverviewDateRanges,
+  type PlatformOverviewInput,
 } from "@/app/utils/overview";
 
-const sampleCurrentMonthOrders: OrderItem[] = [
-  {
-    id: "momo:1",
-    channel: "MOMO 購物網",
-    channelCode: "MOMO_MAIN",
-    orderNo: "MO-101",
-    customerName: "張小美",
-    address: "台北市",
-    items: [{ name: "保溫瓶", spec: "黑", qty: 2, price: 1000 }],
-    totalAmount: 2000,
-    status: "待發貨",
-    logistics: "MOMO 宅配通",
-    trackingNo: "TRK1",
-    createdAt: "2026-08-01 10:00",
-  },
-  {
-    id: "momo:2",
-    channel: "MOMO 購物網",
-    channelCode: "MOMO_MAIN",
-    orderNo: "MO-102",
-    customerName: "李大同",
-    address: "新北市",
-    items: [{ name: "咖啡豆", spec: "500g", qty: 1, price: 500 }],
-    totalAmount: 500,
-    status: "已完成",
-    logistics: "MOMO 宅配通",
-    trackingNo: "TRK2",
-    createdAt: "2026-08-05 14:30",
-  },
-  {
-    id: "mo-store-plus:1",
-    channel: "Mo 店+",
-    channelCode: "MO_STORE_PLUS",
-    orderNo: "MS-201",
-    customerName: "王小明",
-    address: "台中市",
-    items: [{ name: "檯燈", spec: "白", qty: 1, price: 1500 }],
-    totalAmount: 1500,
-    status: "配送中",
-    logistics: "7-11 超商取貨",
-    trackingNo: "TRK3",
-    createdAt: "2026-08-10 09:15",
-  },
-];
+function stats(
+  revenue: number,
+  orderCount: number,
+  daily: PlatformSalesStatistics["daily"] = [],
+  returnCount = 0,
+): PlatformSalesStatistics {
+  return { revenue, orderCount, returnCount, daily };
+}
 
-const sampleLastMonthOrders: OrderItem[] = [
+/**
+ * momo 的統計 API 只給商品層級的加總、沒有日期，因此 daily 一律為空；
+ * mo店+ 回得出逐筆訂單，逐日走勢就有資料。兩種平台的差異刻意保留在測試資料裡。
+ */
+const samplePlatforms: PlatformOverviewInput[] = [
   {
-    id: "momo:old1",
-    channel: "MOMO 購物網",
-    channelCode: "MOMO_MAIN",
-    orderNo: "MO-001",
-    customerName: "陳小芬",
-    address: "台北市",
-    items: [{ name: "保溫瓶", spec: "黑", qty: 1, price: 1000 }],
-    totalAmount: 1000,
-    status: "已完成",
-    logistics: "MOMO 宅配通",
-    trackingNo: "TRK01",
-    createdAt: "2026-07-02 11:00",
+    definition: momoDefinition,
+    currentMonth: stats(2500, 3, [], 2),
+    lastMonth: stats(2000, 3),
+    lastMonthSamePeriod: stats(1000, 1),
+    pendingShipmentCount: 1,
   },
   {
-    id: "mo-store-plus:old2",
-    channel: "Mo 店+",
-    channelCode: "MO_STORE_PLUS",
-    orderNo: "MS-002",
-    customerName: "林小華",
-    address: "高雄市",
-    items: [{ name: "快煮壺", spec: "銀", qty: 1, price: 2000 }],
-    totalAmount: 2000,
-    status: "已完成",
-    logistics: "全家超商取貨",
-    trackingNo: "TRK02",
-    createdAt: "2026-07-10 16:00",
-  },
-  {
-    id: "momo:old3",
-    channel: "MOMO 購物網",
-    channelCode: "MOMO_MAIN",
-    orderNo: "MO-003",
-    customerName: "趙先生",
-    address: "台南市",
-    items: [{ name: "咖啡豆", spec: "500g", qty: 2, price: 500 }],
-    totalAmount: 1000,
-    status: "已完成",
-    logistics: "黑貓宅急便",
-    trackingNo: "TRK03",
-    createdAt: "2026-07-28 20:00",
+    definition: moStorePlusDefinition,
+    currentMonth: stats(1500, 1, [{ date: "2026-08-10", revenue: 1500, orderCount: 1 }]),
+    lastMonth: stats(2000, 1),
+    lastMonthSamePeriod: stats(2000, 1),
+    pendingShipmentCount: 0,
   },
 ];
 
@@ -125,17 +66,15 @@ test("getOverviewDateRanges handles January crossover to previous year's Decembe
 });
 
 test("calculateOverviewMetrics aggregates revenue, orders, AOV and platform breakdown correctly", () => {
-  const fixedDate = new Date("2026-08-14T10:00:00+08:00");
-  const ranges = getOverviewDateRanges(fixedDate);
-  const platforms = [momoDefinition, moStorePlusDefinition];
+  const ranges = getOverviewDateRanges(new Date("2026-08-14T10:00:00+08:00"));
 
-  const metrics = calculateOverviewMetrics(sampleCurrentMonthOrders, sampleLastMonthOrders, platforms, ranges);
+  const metrics = calculateOverviewMetrics(samplePlatforms, ranges);
 
-  // 當月加總營收：2000 + 500 + 1500 = 4000
+  // 當月加總營收：2500 + 1500 = 4000
   assert.equal(metrics.currentMonthRevenue, 4000);
-  // 上月全月營收：1000 + 2000 + 1000 = 4000
+  // 上月全月營收：2000 + 2000 = 4000
   assert.equal(metrics.lastMonthRevenue, 4000);
-  // 上月同期營收（截至 7/14）：MO-001 (1000) + MS-002 (2000) = 3000
+  // 上月同期營收：1000 + 2000 = 3000
   assert.equal(metrics.lastMonthSamePeriodRevenue, 3000);
 
   // 訂單數與客單價
@@ -148,10 +87,10 @@ test("calculateOverviewMetrics aggregates revenue, orders, AOV and platform brea
   assert.equal(metrics.revenueGrowthRate, 33.3);
   assert.equal(metrics.ordersGrowthRate, 100); // (4 - 2) / 2 = +100%
 
-  // 待出貨數
+  // 待出貨與退貨由各平台自行回報後加總
   assert.equal(metrics.pendingShipments, 1);
+  assert.equal(metrics.rmaCount, 2);
 
-  // 各平台統計
   const momoStat = metrics.platformStats.find((s) => s.code === "MOMO_MAIN");
   const moStoreStat = metrics.platformStats.find((s) => s.code === "MO_STORE_PLUS");
 
@@ -162,33 +101,81 @@ test("calculateOverviewMetrics aggregates revenue, orders, AOV and platform brea
   assert.equal(momoStat.lastMonthRevenue, 2000);
   assert.equal(momoStat.currentMonthOrders, 3);
   assert.equal(momoStat.lastMonthOrders, 3);
-  assert.equal(momoStat.sharePercentage, 62.5); // 2500 / 4000 = 62.5%
+  assert.equal(momoStat.currentMonthAov, 833); // 2500 / 3
+  assert.equal(momoStat.sharePercentage, 62.5); // 2500 / 4000
   assert.equal(momoStat.pendingShipment, 1);
 
   assert.equal(moStoreStat.currentMonthRevenue, 1500);
   assert.equal(moStoreStat.lastMonthRevenue, 2000);
   assert.equal(moStoreStat.currentMonthOrders, 1);
-  assert.equal(moStoreStat.lastMonthOrders, 1);
-  assert.equal(moStoreStat.sharePercentage, 37.5); // 1500 / 4000 = 37.5%
+  assert.equal(moStoreStat.sharePercentage, 37.5); // 1500 / 4000
   assert.equal(moStoreStat.pendingShipment, 0);
-
-  // 每日走勢陣列長度應等於今日日數 14
-  assert.equal(metrics.dailyTrends.length, 14);
-  assert.equal(metrics.dailyTrends[0]?.revenue, 2000); // 8/1
-  assert.equal(metrics.dailyTrends[0]?.orderCount, 2); // 8/1 momo qty 2
-  assert.equal(metrics.dailyTrends[4]?.revenue, 500); // 8/5
-  assert.equal(metrics.dailyTrends[4]?.orderCount, 1); // 8/5 momo qty 1
-  assert.equal(metrics.dailyTrends[9]?.revenue, 1500); // 8/10
-  assert.equal(metrics.dailyTrends[9]?.orderCount, 1); // 8/10 mo-store 1
-  assert.equal(metrics.dailyTrends[13]?.cumulativeRevenue, 4000); // 8/14 累計
 });
 
-test("calculateOverviewMetrics handles empty order lists gracefully", () => {
-  const fixedDate = new Date("2026-08-14T10:00:00+08:00");
-  const ranges = getOverviewDateRanges(fixedDate);
-  const platforms = [momoDefinition];
+test("calculateOverviewMetrics 把各平台的逐日銷售疊成當月走勢", () => {
+  const ranges = getOverviewDateRanges(new Date("2026-08-14T10:00:00+08:00"));
 
-  const metrics = calculateOverviewMetrics([], [], platforms, ranges);
+  const metrics = calculateOverviewMetrics(
+    [
+      {
+        definition: momoDefinition,
+        currentMonth: stats(3000, 2, [
+          { date: "2026-08-01", revenue: 2000, orderCount: 2 },
+          { date: "2026-08-05", revenue: 1000, orderCount: 1 },
+        ]),
+        lastMonth: stats(0, 0),
+        lastMonthSamePeriod: stats(0, 0),
+        pendingShipmentCount: 0,
+      },
+      {
+        definition: moStorePlusDefinition,
+        currentMonth: stats(1500, 1, [{ date: "2026-08-01", revenue: 1500, orderCount: 1 }]),
+        lastMonth: stats(0, 0),
+        lastMonthSamePeriod: stats(0, 0),
+        pendingShipmentCount: 0,
+      },
+    ],
+    ranges,
+  );
+
+  assert.equal(metrics.dailyTrends.length, 14);
+  assert.equal(metrics.dailyTrends[0]?.revenue, 3500); // 8/1 兩平台相加
+  assert.equal(metrics.dailyTrends[0]?.orderCount, 3);
+  assert.equal(metrics.dailyTrends[4]?.revenue, 1000); // 8/5
+  assert.equal(metrics.dailyTrends[13]?.cumulativeRevenue, 4500);
+  assert.deepEqual(metrics.dailyTrendUncoveredPlatforms, []);
+});
+
+/**
+ * momo 的接單統計 API 不回日期，走勢圖因此永遠少掉 momo 的業績，
+ * 累計金額對不上當月營收 KPI。這是平台 API 的限制，補不了，
+ * 但要明講是哪些平台沒被涵蓋，畫面才能標註而不是讓使用者自己發現數字兜不攏。
+ */
+test("calculateOverviewMetrics 標出沒有逐日資料但有業績的平台", () => {
+  const ranges = getOverviewDateRanges(new Date("2026-08-14T10:00:00+08:00"));
+
+  const metrics = calculateOverviewMetrics(samplePlatforms, ranges);
+
+  assert.deepEqual(metrics.dailyTrendUncoveredPlatforms, [momoDefinition.name]);
+  // 走勢只涵蓋 mo店+ 的 1500，與當月營收 4000 有落差。
+  assert.equal(metrics.dailyTrends[13]?.cumulativeRevenue, 1500);
+});
+
+test("calculateOverviewMetrics handles empty statistics gracefully", () => {
+  const ranges = getOverviewDateRanges(new Date("2026-08-14T10:00:00+08:00"));
+
+  const metrics = calculateOverviewMetrics(
+    [
+      {
+        definition: momoDefinition,
+        currentMonth: stats(0, 0),
+        lastMonth: stats(0, 0),
+        lastMonthSamePeriod: stats(0, 0),
+        pendingShipmentCount: 0,
+      },
+    ],
+    ranges,
+  );
 
   assert.equal(metrics.currentMonthRevenue, 0);
   assert.equal(metrics.lastMonthRevenue, 0);
@@ -197,4 +184,6 @@ test("calculateOverviewMetrics handles empty order lists gracefully", () => {
   assert.equal(metrics.revenueGrowthRate, null);
   assert.equal(metrics.pendingShipments, 0);
   assert.equal(metrics.platformStats[0]?.sharePercentage, 0);
+  // 沒有業績的平台不必標註走勢缺漏。
+  assert.deepEqual(metrics.dailyTrendUncoveredPlatforms, []);
 });

@@ -5,7 +5,7 @@ import {
   toMoStorePlusOrderStatus,
 } from "@/app/lib/platforms/mo-store-plus-order-mapper";
 import {
-  mapMomoOrderGoodsStatistics,
+  mapMomoSalesStatistics,
   mapMomoShippingOrders,
   mapMomoUnshippedOrders,
 } from "@/app/lib/platforms/momo-order-mapper";
@@ -282,40 +282,37 @@ test("mo店+ 的訂單日期正規化成 YYYY-MM-DD", () => {
 test.each([
   { given: "數字", orderQty: 3, buyPrice: 1200 },
   { given: "含逗號的字串", orderQty: "3", buyPrice: "1,200" },
-])("momo 訂單商品接單統計在進價為$given時都轉成 OrderItem 並算出金額", ({ orderQty, buyPrice }) => {
-  const orders = mapMomoOrderGoodsStatistics([
+])("momo 訂單商品接單統計在進價為$given時都算出同一筆金額", ({ orderQty, buyPrice }) => {
+  const stats = mapMomoSalesStatistics([
     { goodsCode: "2000001", goodsName: "誠得保溫瓶 750ml", goodsDtInfo: "曜石黑", orderQty, buyPrice },
   ]);
 
-  assert.equal(orders.length, 1);
-  assert.equal(orders[0].channelCode, "MOMO_MAIN");
-  assert.equal(orders[0].totalAmount, 3600);
-  assert.equal(orders[0].items[0].qty, 3);
-  assert.equal(orders[0].items[0].price, 1200);
+  assert.equal(stats.revenue, 3600);
+  assert.equal(stats.orderCount, 3);
 });
 
 /**
- * 迴歸測試：orderGoodsStatisticsQuery 的回應沒有任何日期欄位，
- * mapper 過去卻讀 lastPricDate / ordDate / create_date 這些規格書上不存在的欄位。
- * 不編造日期，也不要讓空日期被當成落在區間內。
+ * 迴歸測試：orderGoodsStatisticsQuery 的回應沒有任何日期欄位，過去 mapper 把統計列
+ * 包成 createdAt 為空的假 OrderItem，總覽的走勢圖因此完全看不到 momo。
+ * 現在統計就以統計的形態回傳，逐日資料留空由總覽自行處理。
  */
-test("momo 訂單商品接單統計沒有日期欄位時 createdAt 留空", () => {
-  const [order] = mapMomoOrderGoodsStatistics([
+test("momo 訂單商品接單統計不提供逐日資料", () => {
+  const stats = mapMomoSalesStatistics([
     { goodsCode: "2000002", goodsName: "保溫瓶", orderQty: 1, buyPrice: 100 },
   ]);
 
-  assert.equal(order.createdAt, "");
+  assert.deepEqual(stats.daily, []);
 });
 
-test("momo 訂單商品接單統計扣除 claimQty，全數客退則不產生訂單項目", () => {
-  const orders = mapMomoOrderGoodsStatistics([
+test("momo 訂單商品接單統計扣除 claimQty，全數客退不計入成交", () => {
+  const stats = mapMomoSalesStatistics([
     { goodsCode: "5000001", goodsName: "全退商品", goodsDtInfo: "綠色", orderQty: 1, claimQty: 1, buyPrice: 880 },
     { goodsCode: "4000001", goodsName: "部分客退商品", goodsDtInfo: "紅色", orderQty: 10, claimQty: 3, buyPrice: 500 },
   ]);
 
-  // 全退的那一筆整筆消失，只留下部分客退的商品。
-  assert.equal(orders.length, 1);
-  assert.equal(orders[0].items[0].name, "部分客退商品");
-  assert.equal(orders[0].items[0].qty, 7); // 10 - 3 = 7
-  assert.equal(orders[0].totalAmount, 3500); // 7 * 500 = 3500
+  // 全退那一筆完全不貢獻營收，只留下部分客退商品的 7 件。
+  assert.equal(stats.orderCount, 7);
+  assert.equal(stats.revenue, 3500); // 7 * 500
+  // 客退數量是 momo 唯一的退貨訊號，兩列都要算進去。
+  assert.equal(stats.returnCount, 4); // 1 + 3
 });

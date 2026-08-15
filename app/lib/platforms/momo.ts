@@ -1,7 +1,7 @@
 import { allowedValuesFromEnvironment } from "./config";
 import type { PlatformConnector, PlatformOrderQuery } from "./connector";
 import { MOMO_SHIPPING_STATUS_OPTIONS, MOMO_STORE_DELIVERY_TYPE_OPTIONS, momoDefinition } from "./definitions";
-import { mapMomoOrderGoodsStatistics, mapMomoShippingOrders, mapMomoUnshippedOrders } from "./momo-order-mapper";
+import { mapMomoSalesStatistics, mapMomoShippingOrders, mapMomoUnshippedOrders } from "./momo-order-mapper";
 import { mapMomoGoodsBasicData } from "./momo-product-mapper";
 import { MomoScmClient } from "./momo-scm-client";
 import type { ListingStatusFilter } from "./product";
@@ -110,9 +110,6 @@ export function createMomoConnector(options: MomoConnectorOptions = {}): Platfor
     definition: momoDefinition,
     async fetchOrders(query) {
       const client = createClient();
-      if (query.status === "STATISTICS") {
-        return mapMomoOrderGoodsStatistics(await client.queryOrderGoodsStatistics(query));
-      }
       if (query.status === "UNSHIPPED") return fetchUnshipped(client, query);
       if (query.status === "SHIPPING") return fetchShipping(client, query);
       const [unshippedOrders, shippingOrders] = await Promise.all([
@@ -124,6 +121,15 @@ export function createMomoConnector(options: MomoConnectorOptions = {}): Platfor
     async fetchProducts(query) {
       const saleGb = saleGbByListingStatus[query.listingStatus];
       return mapMomoGoodsBasicData(await createClient().queryGoodsBasicData({ saleGb }));
+    },
+    async fetchSalesStatistics(query) {
+      // 專用的接單統計 API：查無資料時就是零，不能退回去查出貨相關 API，
+      // 否則總覽的營收會混進另一種口徑（售價 vs 進價）的數字。
+      return mapMomoSalesStatistics(await createClient().queryOrderGoodsStatistics(query));
+    },
+    async fetchPendingShipmentCount(query) {
+      // 未指定配送類型與超商別時，fetchUnshipped 會查完全部已串接的組合。
+      return (await fetchUnshipped(createClient(), query)).length;
     },
   };
 }

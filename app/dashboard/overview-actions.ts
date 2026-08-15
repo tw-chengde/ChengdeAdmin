@@ -2,71 +2,51 @@
 
 import { getAllPlatformDefinitions } from "@/app/lib/platforms/definitions";
 import { getConnector } from "@/app/lib/platforms/registry";
-import type { OrderItem } from "@/app/types/order";
+import { emptySalesStatistics, type PlatformSalesQuery } from "@/app/lib/platforms/sales";
 import {
   calculateOverviewMetrics,
   getOverviewDateRanges,
   type OverviewMetrics,
+  type PlatformOverviewInput,
 } from "@/app/utils/overview";
 import { listEnabledPlatformCodes } from "./platforms-actions";
 
 /**
  * 載入營運總覽跨平台指標數據（當月迄今總業績、上月總業績、客單價、成長率、趨勢）。
+ *
+ * 單一平台查詢失敗時以零值代入，總覽才不會因為一個平台的憑證或連線問題整頁掛掉。
  */
 export async function loadOverviewData(): Promise<OverviewMetrics> {
   const ranges = getOverviewDateRanges();
   const enabledCodes = await listEnabledPlatformCodes();
-  const allDefinitions = getAllPlatformDefinitions();
-  const enabledDefinitions = allDefinitions.filter((def) => enabledCodes.includes(def.code));
+  const enabledDefinitions = getAllPlatformDefinitions().filter((def) => enabledCodes.includes(def.code));
 
-  // 並行抓取所有已啟用平台的當月與上月訂單
-  const platformOrderPromises = enabledDefinitions.map(async (def) => {
-    const connector = getConnector(def.code);
-    if (!connector) {
-      return { currentOrders: [] as OrderItem[], lastOrders: [] as OrderItem[], lastSamePeriodOrders: [] as OrderItem[] };
-    }
+  const platformInputs = await Promise.all(
+    enabledDefinitions.map(async (definition): Promise<PlatformOverviewInput> => {
+      const connector = getConnector(definition.code);
+      if (!connector) {
+        return {
+          definition,
+          currentMonth: emptySalesStatistics(),
+          lastMonth: emptySalesStatistics(),
+          lastMonthSamePeriod: emptySalesStatistics(),
+          pendingShipmentCount: 0,
+        };
+      }
 
-    const [currentOrders, lastOrders, lastSamePeriodOrders] = await Promise.all([
-      connector
-        .fetchOrders({
-          from: ranges.currentMonth.from,
-          to: ranges.currentMonth.to,
-          status: "STATISTICS",
-          deliveryType: "All",
-          storeDeliveryType: "All",
-          shippingStatus: "All",
-        })
-        .catch(() => [] as OrderItem[]),
-      connector
-        .fetchOrders({
-          from: ranges.lastMonth.from,
-          to: ranges.lastMonth.to,
-          status: "STATISTICS",
-          deliveryType: "All",
-          storeDeliveryType: "All",
-          shippingStatus: "All",
-        })
-        .catch(() => [] as OrderItem[]),
-      connector
-        .fetchOrders({
-          from: ranges.lastMonthSamePeriod.from,
-          to: ranges.lastMonthSamePeriod.to,
-          status: "STATISTICS",
-          deliveryType: "All",
-          storeDeliveryType: "All",
-          shippingStatus: "All",
-        })
-        .catch(() => [] as OrderItem[]),
-    ]);
+      const salesOf = (range: PlatformSalesQuery) =>
+        connector.fetchSalesStatistics(range).catch(() => emptySalesStatistics());
 
-    return { currentOrders, lastOrders, lastSamePeriodOrders };
-  });
+      const [currentMonth, lastMonth, lastMonthSamePeriod, pendingShipmentCount] = await Promise.all([
+        salesOf(ranges.currentMonth),
+        salesOf(ranges.lastMonth),
+        salesOf(ranges.lastMonthSamePeriod),
+        connector.fetchPendingShipmentCount(ranges.currentMonth).catch(() => 0),
+      ]);
 
-  const platformResults = await Promise.all(platformOrderPromises);
+      return { definition, currentMonth, lastMonth, lastMonthSamePeriod, pendingShipmentCount };
+    }),
+  );
 
-  const allCurrentOrders = platformResults.flatMap((r) => r.currentOrders);
-  const allLastOrders = platformResults.flatMap((r) => r.lastOrders);
-  const allLastSamePeriodOrders = platformResults.flatMap((r) => r.lastSamePeriodOrders);
-
-  return calculateOverviewMetrics(allCurrentOrders, allLastOrders, enabledDefinitions, ranges, allLastSamePeriodOrders);
+  return calculateOverviewMetrics(platformInputs, ranges);
 }

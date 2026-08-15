@@ -390,6 +390,12 @@ export default function OverviewView() {
             <Typography color="text.secondary" sx={{ fontSize: 13, mt: 0.3 }}>
               呈現 1 號至今每日業績走勢與累積金額變化
             </Typography>
+            {/* 走勢累計與當月營收 KPI 對不上時，要講清楚是少了哪個平台，而不是讓使用者自己發現。 */}
+            {metrics && metrics.dailyTrendUncoveredPlatforms.length > 0 && (
+              <Typography sx={{ fontSize: 13, mt: 0.3, color: "#b54708" }}>
+                不含 {metrics.dailyTrendUncoveredPlatforms.join("、")}（該平台未提供每日資料）
+              </Typography>
+            )}
           </Box>
         </Stack>
 

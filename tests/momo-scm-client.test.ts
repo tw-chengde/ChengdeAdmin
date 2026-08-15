@@ -241,21 +241,39 @@ test.each([
     queries: [{ status: "ALL" }],
     expected: { unsendStoresQuery: 6, unsendThirdQuery: 1, sendingStoresQuery: 30, sendingThirdQuery: 2 },
   },
-  {
-    // 統計查不到資料時若回頭查出貨相關 API，總覽的營收會混進另一種口徑的數字。
-    name: "STATISTICS 查無資料時不退回查詢出貨相關 API",
-    scope: {},
-    queries: [{ status: "STATISTICS" }],
-    expected: { orderGoodsStatisticsQuery: 1 },
-  },
 ])("momo connector 查詢編排：$name", async ({ scope, queries, expected }) => {
   const requests = await recordOrderQueries(scope, queries);
+  assert.deepEqual(countByAction(requests), expected);
+});
 
-  const counts = requests.reduce<Record<string, number>>((totals, request) => {
+function countByAction(requests: RecordedRequest[]) {
+  return requests.reduce<Record<string, number>>((totals, request) => {
     totals[request.doAction] = (totals[request.doAction] ?? 0) + 1;
     return totals;
   }, {});
-  assert.deepEqual(counts, expected);
+}
+
+// 銷售統計若混進出貨相關查詢，總覽的營收就會摻到另一種口徑的數字。
+test("momo 銷售統計只查統計 API", async () => {
+  const requests: RecordedRequest[] = [];
+  const connector = createMomoConnector({ createClient: () => recordingClient(requests) });
+
+  const stats = await connector.fetchSalesStatistics(dateRange);
+
+  assert.deepEqual(countByAction(requests), { orderGoodsStatisticsQuery: 1 });
+  assert.deepEqual(stats, { revenue: 0, orderCount: 0, returnCount: 0, daily: [] });
+});
+
+// 待出貨是營運當下的狀態，要走未出貨查詢，不是從統計 API 推算。
+test("momo 待出貨單數只查未出貨 API", async () => {
+  const requests: RecordedRequest[] = [];
+  const connector = createMomoConnector({
+    createClient: () => recordingClient(requests),
+    ...singleThirdPartyScope,
+  });
+
+  assert.equal(await connector.fetchPendingShipmentCount(dateRange), 0);
+  assert.deepEqual(countByAction(requests), { unsendStoresQuery: 6, unsendThirdQuery: 1 });
 });
 
 // 使用者在訂單頁選了條件，就不該再送出被排除掉的那些查詢。
