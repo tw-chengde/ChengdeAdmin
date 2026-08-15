@@ -99,14 +99,24 @@ filenames for UI modules and descriptive domain filenames such as
 
 ## Testing Guidelines
 
-Tests use Vitest, jsdom, and Testing Library. Name files `*.test.ts`,
-`*.test.tsx`, or `*.test.mjs`; mirror the feature name, for example
+Tests use Vitest and Testing Library. Name files `*.test.ts`, `*.test.tsx`, or
+`*.test.mjs`; mirror the feature name, for example
 `tests/products-view.test.tsx`. Prefer user-visible behavior for component tests
 and focused input/output cases for utilities. Add regression coverage with bug
 fixes. Use test-driven development: first add or update a failing test that
 describes the intended behavior, then implement the smallest change to make it
 pass, and refactor while keeping the test suite green. Cover new branches, and
 do not submit changed behavior with failing tests.
+
+`vitest.config.ts` splits the suite into two projects by execution environment,
+because most of this codebase does not run in a browser. The `ui` project gets
+jsdom and the Testing Library `cleanup` in `tests/setup.ts`; the `node` project
+gets neither, so platform clients, mappers, server actions, and migrations are
+tested without a `window` or `document` they will not have at runtime. Selection
+is by filename: `*.test.tsx` and `use*.test.ts` go to `ui`, everything else to
+`node`. A hook test must therefore keep the hook's own `use` prefix
+(`tests/useOrdersViewModel.test.ts`) or it lands in `node` and fails on the
+missing DOM. Run one side alone with `npx vitest --project=ui`.
 
 ## Commit & Pull Request Guidelines
 
