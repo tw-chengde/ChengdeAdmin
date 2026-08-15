@@ -33,6 +33,9 @@ environment variable, and whether it is required), `platform-http.ts` (the
 POST-JSON transport and its error messages), and `mapper-utils.ts` (the
 value-coercion and grouping helpers every mapper needs).
 Documentation, OpenAPI schemas, and platform integration guides are index-mapped in [docs/AGENTS.md](./docs/AGENTS.md).
+Before implementing or changing an integration with a third-party platform API,
+read the applicable specification in `docs/` and implement against that
+specification.
 
 `app/dashboard/(platform-aware)/` is a route group, so it does not appear in
 URLs. `tests/project.test.ts` asserts that every `href` in
@@ -90,7 +93,10 @@ Tests use Vitest, jsdom, and Testing Library. Name files `*.test.ts`,
 `*.test.tsx`, or `*.test.mjs`; mirror the feature name, for example
 `tests/products-view.test.tsx`. Prefer user-visible behavior for component tests
 and focused input/output cases for utilities. Add regression coverage with bug
-fixes. Cover new branches, and do not submit changed behavior with failing tests.
+fixes. Use test-driven development: first add or update a failing test that
+describes the intended behavior, then implement the smallest change to make it
+pass, and refactor while keeping the test suite green. Cover new branches, and
+do not submit changed behavior with failing tests.
 
 ## Commit & Pull Request Guidelines
 
