@@ -12,13 +12,11 @@
   - 網域：`https://api3p.momo.com.tw`
   - 驗證：`Authorization: Bearer TOKEN`
   - 程式實作：[mo-store-plus-client.ts](../app/lib/platforms/mo-store-plus-client.ts)
-  - OpenAPI 規格：[mo-store-plus.openapi.json](./api/mo-store-plus.openapi.json)
 
 - **momo SCM (MOMO_MAIN)**
   - 網域：`https://scmapi.momoshop.com.tw`
   - 驗證：`loginInfo.entpID`、`entpCode`、`entpPwd`、`otpBackNo`
   - 程式實作：[momo-scm-client.ts](../app/lib/platforms/momo-scm-client.ts)
-  - OpenAPI 規格：[momo-scm.openapi.json](./api/momo-scm.openapi.json)
 
 ---
 
@@ -26,8 +24,8 @@
 
 - **[API 規格索引 README](./api/README.md)**
 - **OpenAPI 3.1 規格檔**：
-  - [mo-store-plus.openapi.json](./api/mo-store-plus.openapi.json)
-  - [momo-scm.openapi.json](./api/momo-scm.openapi.json)
+  - [mo-store-plus.openapi.yaml](./api/mo-store-plus.openapi.yaml)
+  - [momo-scm.openapi.yaml](./api/momo-scm.openapi.yaml)
 
 ---
 
@@ -36,4 +34,3 @@
 - **[SCM API 串接常見問題 (FAQ)](./guides/momo-scm-faq.md)**
 - **[SCM API 廠商提問格式](./guides/momo-scm-vendor-question-template.md)**
 - **[SCM 倉庫代碼列表](./guides/momo-scm-warehouse-codes.md)**
-

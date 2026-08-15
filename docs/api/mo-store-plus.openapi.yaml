@@ -1,27 +1,496 @@
 openapi: 3.0.3
 info:
   title: momo 店+後台管理系統 - 廠商 API
-  version: 0.11.0
-  description: 完整萃取自規格書的 API 呼叫與回傳格式
+  version: 0.11.3
+  description: |
+    完整萃取自規格書「momo 店+後台管理系統 - 廠商 API 規格書 v.0.11.3」。
+
+    涵蓋規格書的全部 32 個操作端點（商品相關 22 項、訂單相關 10 項），
+    包含各欄位的必填性（`required`）、列舉值（`enum`）與備註。
+
+    ## 認證
+    所有 API 皆需於 HTTP HEADER 帶入 `Authorization: Bearer <TOKEN>`（RFC-6750）。
+    TOKEN 由「momo 店+後台管理系統」→「商店」→「權限管理」→「A103 API 串接 IP 位址管理」申請，
+    審核開通後寄送至 API 串接聯絡人信箱。發送請求的主機對外 IP 必須為 A103 已登記的 IP 之一。
 servers:
   - url: https://api3p.momo.com.tw
     description: momo 店+廠商 API 伺服器
+tags:
+  - name: 商品相關
+    description: 規格書「貳、API 規格說明 / 一、商品相關」
+  - name: 訂單相關
+    description: 規格書「貳、API 規格說明 / 二、訂單相關」
 components:
   schemas:
+    # ------------------------------------------------------------------
+    # 共用
+    # ------------------------------------------------------------------
+    OrderRef:
+      type: object
+      description: 訂單編號與品項流水號的組合
+      required:
+        - orderNo
+        - orderSeq
+      properties:
+        orderNo:
+          type: string
+          description: 訂單編號
+        orderSeq:
+          type: string
+          description: 訂單品項流水號
+
+    # ------------------------------------------------------------------
+    # 商品相關
+    # ------------------------------------------------------------------
+    CategoryTreeNode:
+      type: object
+      description: 商品分類節點（可遞迴巢狀）
+      required:
+        - id
+        - value
+        - isLeaf
+      properties:
+        id:
+          type: string
+          description: 分類 id（子節點為分類編號）
+        value:
+          type: string
+          description: 分類名稱
+        isLeaf:
+          type: string
+          description: 是否葉子節點。0：否、1：是
+          enum:
+            - '0'
+            - '1'
+        childrens:
+          type: array
+          description: 子節點
+          items:
+            $ref: '#/components/schemas/CategoryTreeNode'
+
     GoodsSaleStatusRequest:
       type: object
+      required:
+        - listGoodsCode
       properties:
         listGoodsCode:
           type: array
           description: 商品編號陣列
           items:
             type: string
-    GoodsUpsertRequest:
+
+    InspectionParam:
       type: object
+      description: 檢驗報告書
+      properties:
+        inspectionEffectiveDate:
+          type: string
+          description: 檢驗報告書開始時間（格式 yyyy-MM-dd HH:mm:ss）
+        inspectionExpiredDate:
+          type: string
+          description: 檢驗報告書結束時間（格式 yyyy-MM-dd HH:mm:ss）
+        inspectionFileIdList:
+          type: array
+          description: 檢驗報告書圖檔（如有填寫 inspectionEffectiveDate，需至少上傳 1 張低於 500K 的圖檔）
+          items:
+            type: string
+
+    PcertDescribeParam:
+      type: object
+      description: 相關認證字號
+      properties:
+        proChkCode:
+          type: string
+          description: 商檢字號
+        nccChkCode:
+          type: string
+          description: NCC 字號
+        energyLabel:
+          type: string
+          description: 能源效率分級
+        pcertImgId:
+          type: string
+          description: 附件圖片 id（可利用 /apiv2/VendorApi/FileDetail 查詢）
+
+    SizeParamItem:
+      type: object
+      properties:
+        type:
+          type: string
+          description: 尺寸類型
+          enum:
+            - underwear
+            - jacket
+            - dress
+            - underpants
+            - skirt
+            - shoe
+        unit:
+          type: string
+          description: 單位
+          enum:
+            - cm
+            - inch
+        clothingSizesParamList:
+          type: array
+          description: '尺寸資料，例：[["1","2"],["2","3"]]'
+          items:
+            type: array
+            items:
+              type: string
+        clothingTrysParamList:
+          type: array
+          description: '試穿報告，例：[["a","b"],["c","d"]]'
+          items:
+            type: array
+            items:
+              type: string
+
+    GoodsAttrParamItem:
+      type: object
+      properties:
+        goodsAttrId:
+          type: string
+          description: 商品屬性主檔編號
+        indexNo:
+          type: string
+          description: 商品屬性分群編號
+        indexItemNoList:
+          type: array
+          description: 商品屬性分群內容編號
+          items:
+            type: string
+
+    GoodsDescribeParamItem:
+      type: object
+      properties:
+        type:
+          type: string
+          description: 類型
+          enum:
+            - slogan
+            - nevin
+        content:
+          type: string
+          description: 内容
+
+    EnvMedicineParam:
+      type: object
+      description: 環境用藥信息（可透過 /apiv2/VendorApi/QuerySetting 查詢是否需要填寫）
+      properties:
+        envMedicineCode:
+          type: string
+          description: |
+            環境用藥許可證字號。格式為下列前綴加四碼數字：
+            衛製-／衛輸-／微製-／微輸-／汙製-／汙輸-
+        envMedicineEntpName:
+          type: string
+          description: 廠商名稱
+        envMedicineChkCode:
+          type: string
+          description: '環境用藥販賣許可證。格式：兩碼數字-三碼數字，範例 00-945'
+
+    TempGoodsSkuParamItem:
+      type: object
+      description: 規格列表項目（新增商品／編輯暫存商品用）
+      required:
+        - entpGoodsNo
+        - internationalNo
+        - canSaleQty
+        - salePrice
+        - imgFileId
+      properties:
+        goodsdtInfo1:
+          type: string
+          description: 規格一值（自定義規格一）。colName1 有填時必填；無規格（單一規格）時不需填寫
+        goodsdtInfo2:
+          type: string
+          description: 規格二值（自定義規格二）。colName2 有填時必填；無規格（單一規格）時不需填寫
+        saleGb:
+          type: string
+          description: 規格狀態
+          enum:
+            - 'on'
+            - 'off'
+        entpGoodsNo:
+          type: string
+          description: 供應商原廠貨號（長度請勿超過 150）
+        internationalNo:
+          type: string
+          description: 國際條碼
+        canSaleQty:
+          type: string
+          description: 庫存量
+        salePrice:
+          type: string
+          description: 售價
+        custPrice:
+          type: string
+          description: 市價
+        imgFileId:
+          type: string
+          description: 圖檔 id（可利用 /apiv2/VendorApi/FileDetail 查詢）
+
+    GoodsModifySkuParamItem:
+      type: object
+      description: 規格列表項目（已上架商品資料編輯用）
+      required:
+        - saleGb
+        - internationalNo
+        - canSaleQty
+        - salePrice
+        - imgFileId
+      properties:
+        goodsDtCode:
+          type: string
+          description: |
+            規格(sku)編號／商品子品項編號。
+            既有規格為必填且需依原規格順序填寫；新增的規格則不必填寫。
+            可透過 /VendorApi/GoodsQueryByMethod 查詢 sku 編號。
+        goodsdtInfo1:
+          type: string
+          description: 規格一值（自定義規格一）。colName1 有填時必填；無規格（單一規格）時不需填寫
+        goodsdtInfo2:
+          type: string
+          description: 規格二值（自定義規格二）。colName2 有填時必填；無規格（單一規格）時不需填寫
+        saleGb:
+          type: string
+          description: 規格狀態
+          enum:
+            - 'on'
+            - 'off'
+        entpGoodsNo:
+          type: string
+          description: 供應商原廠貨號（長度請勿超過 150）
+        internationalNo:
+          type: string
+          description: 國際條碼
+        canSaleQty:
+          type: string
+          description: 庫存量
+        salePrice:
+          type: string
+          description: 售價
+        custPrice:
+          type: string
+          description: 市價
+        imgFileId:
+          type: string
+          description: 圖檔 id（可利用 /apiv2/VendorApi/FileDetail 查詢）
+
+    TempGoodsModifyRequest:
+      type: object
+      description: |
+        新增商品 & 編輯暫存商品（/apiv2/VendorApi/TempGoodsmodify）的請求。
+        建議新增商品前，先使用商品相關第 10~16 支 API 查詢所需的分類、品牌、屬性等資料。
+      required:
+        - goodsName
+        - freeShipping
+        - weight
+        - logisticsNoList
+        - skuParamList
+        - goodsImgIdList
       properties:
         goodsCode:
           type: string
-          description: 商品編號 (如有值，表示為暫存品的編輯)
+          description: 商品編號（如有值，表示為暫存品的編輯）
+        webBrandNo:
+          type: string
+          description: 商品品牌編號（可透過 /apiv2/VendorApi/ListWebBrand 取得）
+        webBrandSeries:
+          type: string
+          description: 品牌系列
+        goodsName:
+          type: string
+          description: 商品名稱
+        categoryCode:
+          type: string
+          description: 分類編號（如 goodsCode 未填寫而 categoryCode 有填，新增商品時以此分類編號為主）
+        nsTaxDone:
+          type: boolean
+          description: |
+            是否應免稅。true：免稅、false：應稅（僅限店家開立發票可選擇免稅）。
+            特定分類需填寫，可透過 /apiv2/VendorApi/QuerySetting 查詢是否需要填寫
+        freeShipping:
+          type: boolean
+          description: 是否免運費。true：是（此商品費用由商店全額負擔）、false：否
+        categoryByEntpCodeList:
+          type: array
+          description: 商店分類多個
+          items:
+            type: string
+        inspectionParam:
+          $ref: '#/components/schemas/InspectionParam'
+        asYn:
+          type: boolean
+          description: 是否有售後保固。true：是、false：否
+        asTerm:
+          type: string
+          description: 保固(維修)天數（若為永久保固請填入 99999）
+        asNote:
+          type: string
+          description: 保固內容（長度不能超過 800）
+        delyTemp:
+          type: string
+          description: 配送溫層
+          enum:
+            - normalTemperature
+            - frozen
+            - refrigerated
+        volumeType:
+          type: string
+          description: 材積類型。outerBoxSize：外箱尺寸、volumeSpacing：材積級距
+          enum:
+            - outerBoxSize
+            - volumeSpacing
+        length:
+          type: string
+          description: 長度（選擇 volumeSpacing 時可不必填寫）
+        width:
+          type: string
+          description: 寬度（選擇 volumeSpacing 時可不必填寫）
+        height:
+          type: string
+          description: 高度（選擇 volumeSpacing 時可不必填寫）
+        weight:
+          type: string
+          description: 重量（v0.7.0 起為必填）
+        volume:
+          type: string
+          description: 材積級距。當 volumeType 選擇 volumeSpacing 時必填
+          enum:
+            - '60'
+            - '90'
+            - '105'
+            - '120'
+            - '150'
+            - '151'
+        logisticsNoList:
+          type: array
+          description: 配送物流方式設定
+          items:
+            type: string
+            enum:
+              - convenienceStore
+              - thirdParty
+              - generalHomeDelivery
+        realLogisticsNo:
+          type: string
+          description: 物流運費編號（可透過 /apiv2/VendorApi/GetCustomizeFreightList 查詢 logisticsNo）
+        outplaceSeq:
+          type: string
+          description: 出貨地代碼（可透過 /apiv2/VendorApi/GetToutplaceList 查詢）
+        skuParamList:
+          type: array
+          description: 規格列表
+          items:
+            $ref: '#/components/schemas/TempGoodsSkuParamItem'
+        pcertDescribeParam:
+          $ref: '#/components/schemas/PcertDescribeParam'
+        sizeParam:
+          type: array
+          description: 尺寸參數
+          items:
+            $ref: '#/components/schemas/SizeParamItem'
+        goodsAttrParamList:
+          type: array
+          description: 規格屬性列表
+          items:
+            $ref: '#/components/schemas/GoodsAttrParamItem'
+        goodsNote:
+          type: string
+          description: |
+            商品規格描述。填寫內容可使用 /apiv2/VendorApi/QuerySetting 查詢；
+            如 QuerySetting 的 content 有回傳值，內容為字串，每個題目之間需使用換行符號 (\n)
+        goodsDescribeParamList:
+          type: array
+          description: 商品特色頁描述
+          items:
+            $ref: '#/components/schemas/GoodsDescribeParamItem'
+        youtubeLink:
+          type: string
+          nullable: true
+          description: Youtube ID
+        goodsImgIdList:
+          type: array
+          description: 商品主圖 id 列表（可利用 /apiv2/VendorApi/FileDetail 查詢）
+          items:
+            type: string
+        adImgFileId:
+          type: string
+          description: 商品廣告圖 id（可利用 /apiv2/VendorApi/FileDetail 查詢）
+        exportImgFileIdList:
+          type: array
+          description: 商品特色（專推）-圖檔。可提供圖檔 id 清單，會放置到 htmlEditor
+          items:
+            type: string
+        youtubeLinkList:
+          type: array
+          description: 商品特色（專推）- 商品影音。可放多個 Youtube 連結，會放置到 htmlEditor
+          items:
+            type: string
+        htmlEditor:
+          type: string
+          description: 專推
+        envMedicineParam:
+          $ref: '#/components/schemas/EnvMedicineParam'
+        recycleItem:
+          type: string
+          description: 回收項目(大型家電)（長度不可超過 500）
+        mountYn:
+          type: boolean
+          description: 大型家電是否含安裝。true：含安裝、false：不含安裝
+        nsAppShippingDone:
+          type: boolean
+          description: 是否為約定送貨。可透過 /apiv2/VendorApi/QuerySetting 查詢是否需要填寫
+        onType:
+          type: string
+          description: |
+            商品上架方式。now：立即上架、time：預約（商品將於所預約之開始時間上架，結束時間下架）。
+            未填值時，商品狀態為暫存
+          enum:
+            - now
+            - time
+        startDate:
+          type: string
+          description: 開始時間（如 onType=time 需填寫，格式 yyyy-MM-dd HH:mm:ss）
+        endDate:
+          type: string
+          description: 結束時間（如 onType=time 需填寫，格式 yyyy-MM-dd HH:mm:ss）
+        colName1:
+          type: string
+          description: 規格一名（若該商品為無規格（單一規格），此參數可不必填寫）
+        colName2:
+          type: string
+          description: 規格二名（若該商品為無規格（單一規格），此參數可不必填寫）
+
+    GoodsModifyRequest:
+      type: object
+      description: |
+        已上架商品資料編輯（/apiv2/VendorApi/GoodsModify）的請求。
+
+        v0.11.2 起的規格並存處理方式：若要傳規格，只需將新規格都傳過來，若新規格有沒傳的，程式會提醒。
+        - 無規格 + 單規格：需傳全部單規格，若多傳了無規格的資訊會直接壓刪除
+        - 單規格 + 雙規格：需傳全部雙規格，若多傳了單規格的資訊會直接壓刪除
+        - 無規格 + 雙規格：需傳全部雙規格，若多傳了無規格的資訊會直接壓刪除
+
+        規格判定：
+        - 無規格：colName1 和 colName2 都沒填，則 skuParamList 裡的 goodsdtInfo1／goodsdtInfo2 不需填
+        - 單規格：colName1 有填、colName2 沒填，則 goodsdtInfo1 必填、goodsdtInfo2 不需填
+        - 雙規格：colName1 和 colName2 都有填，則 goodsdtInfo1 和 goodsdtInfo2 都必填
+      required:
+        - goodsCode
+        - goodsName
+        - freeShippingYn
+        - volumeType
+        - logisticsNoList
+        - skuParamList
+        - goodsImgIdList
+        - onType
+      properties:
+        goodsCode:
+          type: string
+          description: 商品編號
         webBrandNo:
           type: string
           description: 商品品牌編號
@@ -31,250 +500,169 @@ components:
         goodsName:
           type: string
           description: 商品名稱
-        categoryCode:
-          type: string
-          description: 分類編號
-        nsTaxDone:
-          type: boolean
-          description: 是否應免稅
-        freeShipping:
-          type: boolean
-          description: 是否免運費
         freeShippingYn:
           type: string
-          description: 是否免運費（已上架商品編輯使用；必填；0：否、1：是；商品費用由商店全額負擔）
+          description: 是否免運費。0：否、1：是（此商品費用由商店全額負擔）
+          enum:
+            - '0'
+            - '1'
         categoryByEntpCodeList:
           type: array
           description: 商店分類多個
           items:
             type: string
         inspectionParam:
-          type: object
-          description: 檢驗報告書
-          properties:
-            inspectionEffectiveDate:
-              type: string
-              description: 檢驗報告書開始時間
-            inspectionExpiredDate:
-              type: string
-              description: 檢驗報告書結束時間
-            inspectionFileIdList:
-              type: array
-              description: 檢驗報告書圖檔
-              items:
-                type: string
+          $ref: '#/components/schemas/InspectionParam'
         asYn:
           type: boolean
-          description: 是否有售後保固
+          description: 是否有售後保固。1：是、0：否
         asTerm:
           type: string
           description: 保固(維修)天數
         asNote:
           type: string
-          description: 保固內容
+          description: 保固內容（長度不能超過 800）
         delyTemp:
           type: string
-          description: 配送溫層 (normalTemperature/frozen/refrigerated)
+          description: 配送溫層
+          enum:
+            - normalTemperature
+            - frozen
+            - refrigerated
         volumeType:
           type: string
-          description: 材積類型 (outerBoxSize/volumeSpacing)
+          description: 材積類型。outerBoxSize：外箱尺寸、volumeSpacing：材積級距
+          enum:
+            - outerBoxSize
+            - volumeSpacing
         length:
           type: string
-          description: 長度
+          description: 長度（選擇 volumeSpacing 時可不必填寫）
         width:
           type: string
-          description: 寬度
+          description: 寬度（選擇 volumeSpacing 時可不必填寫）
         height:
           type: string
-          description: 高度
+          description: 高度（選擇 volumeSpacing 時可不必填寫）
         weight:
-          type: number
+          type: string
           description: 重量
         volume:
           type: string
           description: 材積級距
+          enum:
+            - '60'
+            - '90'
+            - '105'
+            - '120'
+            - '150'
+            - '151'
         logisticsNoList:
           type: array
           description: 配送物流方式設定
           items:
             type: string
+            enum:
+              - convenienceStore
+              - thirdParty
+              - generalHomeDelivery
         realLogisticsNo:
           type: string
-          description: 物流運費編號
+          description: |
+            物流運費編號。logisticsNoList 有 generalHomeDelivery 時必填。
+            可透過 /apiv2/VendorApi/GetCustomizeFreightList 查詢 logisticsNo
         outplaceSeq:
           type: string
-          description: 出貨地代碼
+          description: |
+            出貨地代碼。logisticsNoList 有 thirdParty 時必填。
+            可透過 /apiv2/VendorApi/GetToutplaceList 查詢第三方物流出貨地
         skuParamList:
           type: array
           description: 規格列表
           items:
-            type: object
-            properties:
-              goodsdtInfo1:
-                type: string
-                description: 規格一值
-              goodsdtInfo2:
-                type: string
-                description: 規格二值
-              goodsDtCode:
-                type: string
-                description: 商品子品項編號（既有規格必填且須依原規格順序填寫；新增規格可不填；可由 /VendorApi/GoodsQueryByMethod 查詢）
-              saleGb:
-                type: string
-                description: 規格狀態（必填；on：啟用；off：停用）
-              entpGoodsNo:
-                type: string
-                description: 供應商原廠貨號
-              internationalNo:
-                type: string
-                description: 國際條碼
-              canSaleQty:
-                type: string
-                description: 庫存量
-              salePrice:
-                type: string
-                description: 售價
-              custPrice:
-                type: string
-                description: 市價
-              imgFileId:
-                type: string
-                description: 圖檔 id
+            $ref: '#/components/schemas/GoodsModifySkuParamItem'
         pcertDescribeParam:
-          type: array
-          description: 相關認證字號
-          items:
-            type: object
-            properties:
-              proChkCode:
-                type: string
-                description: 商檢字號
-              nccChkCode:
-                type: string
-                description: NCC 字號
-              energyLabel:
-                type: string
-                description: 能源效率分級
-              pcertImgId:
-                type: string
-                description: 附件圖片 id
+          $ref: '#/components/schemas/PcertDescribeParam'
         sizeParam:
           type: array
           description: 尺寸參數
           items:
-            type: object
-            properties:
-              type:
-                type: string
-                description: 尺寸類型
-              unit:
-                type: string
-                description: 單位
-              clothingSizesParamList:
-                type: array
-                items:
-                  type: array
-                  items:
-                    type: string
-              clothingTrysParamList:
-                type: array
-                items:
-                  type: array
-                  items:
-                    type: string
+            $ref: '#/components/schemas/SizeParamItem'
         goodsAttrParamList:
           type: array
           description: 規格屬性列表
           items:
-            type: object
-            properties:
-              goodsAttrId:
-                type: string
-                description: 商品屬性主檔編號
-              indexNo:
-                type: string
-                description: 商品屬性分群編號
-              indexItemNoList:
-                type: array
-                description: 商品屬性分群內容編號
-                items:
-                  type: string
+            $ref: '#/components/schemas/GoodsAttrParamItem'
         goodsNote:
           type: string
-          description: 商品規格描述
+          description: |
+            商品規格描述。特定分類需填寫，可透過 /apiv2/VendorApi/QuerySetting 查詢是否需要填寫；
+            如 QuerySetting 的 content 有回傳值，內容為字串，每個題目之間需使用換行符號 (\n)
         goodsDescribeParamList:
           type: array
           description: 商品特色頁描述
           items:
-            type: object
-            properties:
-              type:
-                type: string
-                description: 類型 (slogan/nevin)
-              content:
-                type: string
-                description: 内容
+            $ref: '#/components/schemas/GoodsDescribeParamItem'
         youtubeLink:
           type: string
+          nullable: true
           description: Youtube ID
         goodsImgIdList:
           type: array
-          description: 商品主圖 id 列表
+          description: 商品主圖 id 列表（可利用 /apiv2/VendorApi/FileDetail 查詢）
           items:
             type: string
         adImgFileId:
           type: string
-          description: 商品廣告圖 id
+          description: 商品廣告圖 id（可利用 /apiv2/VendorApi/FileDetail 查詢）
         exportImgFileIdList:
           type: array
-          description: 商品特色（專推）-圖檔
+          description: 商品特色（專推）-圖檔。可提供圖檔 id 清單，會放置到 htmlEditor
           items:
             type: string
         youtubeLinkList:
-          type: string
-          description: 商品特色（專推）- 商品影音
+          type: array
+          description: 商品特色（專推）- 商品影音。可放多個 Youtube 連結，會放置到 htmlEditor
+          items:
+            type: string
         htmlEditor:
           type: string
           description: 專推
         envMedicineParam:
-          type: object
-          description: 環境用藥信息
-          properties:
-            envMedicineCode:
-              type: string
-              description: 環境用藥許可證字號
-            envMedicineEntpName:
-              type: string
-              description: 廠商名稱
-            envMedicineChkCode:
-              type: string
-              description: 環境用藥販賣許可證
+          $ref: '#/components/schemas/EnvMedicineParam'
         recycleItem:
           type: string
-          description: 回收項目(大型家電)
+          description: 回收項目(大型家電)（長度不可超過 500）
         mountYn:
           type: boolean
-          description: 大型家電是否含安裝
+          description: 大型家電是否含安裝。true：含安裝、false：不含安裝
         nsAppShippingDone:
           type: boolean
-          description: 是否為約定送貨
+          description: 是否為約定送貨。可透過 /apiv2/VendorApi/QuerySetting 查詢是否需要填寫
         onType:
           type: string
-          description: 商品上架方式 (now/time)
+          description: 商品上架方式。now：上架、time：預約（商品將於所預約之開始時間上架，結束時間下架）
+          enum:
+            - now
+            - time
         startDate:
           type: string
-          description: 開始時間
+          description: 開始時間（如 onType=time 需填寫，格式 yyyy-MM-dd HH:mm:ss）
         endDate:
           type: string
-          description: 結束時間
+          description: 結束時間（如 onType=time 需填寫，格式 yyyy-MM-dd HH:mm:ss）
         colName1:
           type: string
-          description: 規格一名
+          description: 規格一名（若該商品為無規格（單一規格），此參數可不必填寫）
         colName2:
           type: string
-          description: 規格二名
+          description: 規格二名（若該商品為無規格（單一規格），此參數可不必填寫）
+
     GoodsUpsertResponse:
       type: object
+      required:
+        - success
+        - errorMessage
       properties:
         success:
           type: boolean
@@ -285,8 +673,14 @@ components:
         data:
           type: string
           description: 商品編號
+
+    # ------------------------------------------------------------------
+    # 訂單相關
+    # ------------------------------------------------------------------
     OrderDeliveryConfirmationResponse:
       type: object
+      required:
+        - confirmDeliveryDetailResList
       properties:
         success:
           type: boolean
@@ -299,6 +693,11 @@ components:
           description: 確認結果明細
           items:
             type: object
+            required:
+              - orderNo
+              - orderSeq
+              - success
+              - message
             properties:
               orderNo:
                 type: string
@@ -312,50 +711,82 @@ components:
               message:
                 type: string
                 description: 信息
-    ConvenienceStoreDeliveryConfirmationRequest:
+
+    StoreDeliveryConfirmationItem:
       type: object
+      description: 超商出貨確認的訂單項目（711 / 全家共用）
+      required:
+        - deliveryStatus
+      properties:
+        newBoxYn:
+          type: string
+          description: 倂箱號
+        deliveryStatus:
+          type: string
+          description: |
+            配送狀態。
+            Shipped：已配送/可出貨；
+            CancelNoStockOrder：無貨取消訂單；
+            OtherDeliverTypeOrMissIngBox：已用其它方式出貨或漏併箱；
+            StoreNote：商店備註
+          enum:
+            - Shipped
+            - CancelNoStockOrder
+            - OtherDeliverTypeOrMissIngBox
+            - StoreNote
+        deliveryNote:
+          type: string
+          description: 配送訊息（可帶空值）
+        orderList:
+          type: array
+          description: 訂單列表。orderSeq 運費可不用提供，限填回收的主商品 orderSeq
+          items:
+            $ref: '#/components/schemas/OrderRef'
+
+    SevenStoreDeliveryConfirmationRequest:
+      type: object
+      required:
+        - delyGb
+        - listItem
       properties:
         delyGb:
-          type: string
-          description: 超取類型
+          type: integer
+          description: 超取類型。21：倉到店、22：店到店
+          enum:
+            - 21
+            - 22
         listItem:
           type: array
-          description: 訂單項變價陣列
+          description: 訂單項變價陣列（不能超過 100 筆）
+          maxItems: 100
           items:
-            type: object
-            properties:
-              newBoxYn:
-                type: string
-                description: 倂箱號
-              deliveryStatus:
-                type: string
-                description: 配送狀態
-              deliveryNote:
-                type: string
-                description: 配送訊息
-              shipPack:
-                type: string
-                description: 出貨包材
-              packType:
-                type: string
-                description: 包材類型
-              packUnit:
-                type: string
-                description: 包材重量(公克)
-              orderList:
-                type: array
-                description: 訂單列表
-                items:
-                  type: object
-                  properties:
-                    orderNo:
-                      type: string
-                      description: 訂單編號
-                    orderSeq:
-                      type: string
-                      description: 訂單品項流水號
+            $ref: '#/components/schemas/StoreDeliveryConfirmationItem'
+
+    FamilyStoreDeliveryConfirmationRequest:
+      type: object
+      required:
+        - delyGb
+        - listItem
+      properties:
+        delyGb:
+          type: integer
+          description: 超取類型。29：常溫店到店、27：常溫倉到店、24：冷凍店到店、23：冷凍倉到店
+          enum:
+            - 29
+            - 27
+            - 24
+            - 23
+        listItem:
+          type: array
+          description: 訂單項變價陣列（不能超過 100 筆）
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/StoreDeliveryConfirmationItem'
+
     ConvenienceStoreDeliveryConfirmationResponse:
       type: object
+      required:
+        - confirmDeliveryDetailResList
       properties:
         success:
           type: boolean
@@ -368,6 +799,12 @@ components:
           description: 確認結果明細
           items:
             type: object
+            required:
+              - deliveryStatus
+              - slipNo
+              - printLable
+              - printDetail
+              - success
             properties:
               newBoxYn:
                 type: string
@@ -378,59 +815,88 @@ components:
               deliveryStatus:
                 type: string
                 description: 配送狀態
+                enum:
+                  - Shipped
+                  - CancelNoStockOrder
+                  - OtherDeliverTypeOrMissIngBox
+                  - StoreNote
               deliveryNote:
                 type: string
                 description: 配送訊息
               printLable:
                 type: string
-                description: 列印標籤
+                description: 列印標籤（base64 字符）
               printDetail:
                 type: string
-                description: 列印明細
+                description: 列印明細（base64 字符）
               orderList:
                 type: array
                 description: 訂單列表
                 items:
-                  type: object
-                  properties:
-                    orderNo:
-                      type: string
-                      description: 訂單編號
-                    orderSeq:
-                      type: string
-                      description: 訂單品項流水號
+                  $ref: '#/components/schemas/OrderRef'
               success:
                 type: boolean
                 description: 是否成功
               message:
                 type: string
                 description: 信息
-    ConvenienceStoreLabelRequest:
+
+    SevenStoreLabelRequest:
       type: object
+      required:
+        - listItem
       properties:
         listItem:
           type: array
           description: 訂單陣列
           items:
             type: object
+            required:
+              - delyGb
             properties:
               delyGb:
                 type: integer
-                description: 超取類型
+                description: 超取類型。21：倉到店、22：店到店
+                enum:
+                  - 21
+                  - 22
               orderList:
                 type: array
-                description: 訂單列表
+                description: 訂單列表（需同一筆訂單同一個宅單）
                 items:
-                  type: object
-                  properties:
-                    orderNo:
-                      type: string
-                      description: 訂單編號
-                    orderSeq:
-                      type: string
-                      description: 訂單品項流水號
+                  $ref: '#/components/schemas/OrderRef'
+
+    FamilyStoreLabelRequest:
+      type: object
+      required:
+        - listItem
+      properties:
+        listItem:
+          type: array
+          description: 訂單陣列
+          items:
+            type: object
+            required:
+              - delyGb
+            properties:
+              delyGb:
+                type: integer
+                description: 超取類型。29：常溫店到店、27：常溫倉到店、24：冷凍店到店、23：冷凍倉到店
+                enum:
+                  - 29
+                  - 27
+                  - 24
+                  - 23
+              orderList:
+                type: array
+                description: 訂單列表（需同一筆訂單同一個宅單）
+                items:
+                  $ref: '#/components/schemas/OrderRef'
+
     ConvenienceStoreLabelResponse:
       type: object
+      required:
+        - orderPrintLabelResList
       properties:
         success:
           type: boolean
@@ -443,13 +909,18 @@ components:
           description: 確認結果明細
           items:
             type: object
+            required:
+              - printLable
+              - printDetail
+              - printAll
+              - message
             properties:
               printLable:
                 type: string
                 description: 列印標籤
               printDetail:
                 type: string
-                description: 列印明細
+                description: 列印明細（字串流，收到檔案請用統編解密）
               printAll:
                 type: string
                 description: 列印出貨總表
@@ -457,14 +928,7 @@ components:
                 type: array
                 description: 訂單列表
                 items:
-                  type: object
-                  properties:
-                    orderNo:
-                      type: string
-                      description: 訂單編號
-                    orderSeq:
-                      type: string
-                      description: 訂單品項流水號
+                  $ref: '#/components/schemas/OrderRef'
               message:
                 type: string
                 description: 信息
@@ -494,12 +958,18 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - result
                 properties:
                   result:
                     type: array
                     description: 資料陣列
                     items:
                       type: object
+                      required:
+                        - goodsCode
+                        - success
+                        - errorMessage
                       properties:
                         goodsCode:
                           type: string
@@ -528,12 +998,18 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - result
                 properties:
                   result:
                     type: array
                     description: 資料陣列
                     items:
                       type: object
+                      required:
+                        - goodsCode
+                        - success
+                        - errorMessage
                       properties:
                         goodsCode:
                           type: string
@@ -549,18 +1025,27 @@ paths:
       tags:
         - 商品相關
       summary: 3. 商品價格異動
+      deprecated: true
+      description: 即將取消！2024/10/7 起由「3.1 商品規格(sku)價格異動」(/VendorApi/GoodsdtPriceModify) 功能取代之。
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - listGoodsPriceModify
               properties:
                 listGoodsPriceModify:
                   type: array
                   description: 商品變價陣列
                   items:
                     type: object
+                    required:
+                      - goodsCode
+                      - salePrice
+                      - custPrice
+                      - applyDate
                     properties:
                       goodsCode:
                         type: string
@@ -573,7 +1058,7 @@ paths:
                         description: 市價 (正整數)
                       applyDate:
                         type: string
-                        description: 商品價格生效日 (yyyy-MM-dd)
+                        description: 商品價格生效日（格式支援 yyyyMMdd 或 yyyy-MM-dd 或 yyyy/MM/dd）
       responses:
         '200':
           description: OK
@@ -581,12 +1066,19 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - result
                 properties:
                   result:
                     type: array
                     description: 資料陣列
                     items:
                       type: object
+                      required:
+                        - goodsCode
+                        - success
+                        - method
+                        - errorMessage
                       properties:
                         goodsCode:
                           type: string
@@ -596,7 +1088,10 @@ paths:
                           description: 價格異動成功或失敗
                         method:
                           type: string
-                          description: 此商品價格異動為新增或修改 (insert/update)
+                          description: 此商品價格異動為新增或修改。新增 insert；修改 update
+                          enum:
+                            - insert
+                            - update
                         errorMessage:
                           type: string
                           description: 價格異動失敗時的錯誤訊息
@@ -611,12 +1106,20 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - listItem
               properties:
                 listItem:
                   type: array
                   description: 商品子品項變價陣列
                   items:
                     type: object
+                    required:
+                      - goodsCode
+                      - goodsdtCode
+                      - salePrice
+                      - custPrice
+                      - applyDate
                     properties:
                       goodsCode:
                         type: string
@@ -632,7 +1135,7 @@ paths:
                         description: 市價 (正整數)
                       applyDate:
                         type: string
-                        description: 商品價格生效日
+                        description: 商品價格生效日（格式支援 yyyyMMdd 或 yyyy-MM-dd 或 yyyy/MM/dd）
       responses:
         '200':
           description: OK
@@ -640,6 +1143,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - listItem
                 properties:
                   success:
                     type: boolean
@@ -652,6 +1157,12 @@ paths:
                     description: 商品子品項資料陣列
                     items:
                       type: object
+                      required:
+                        - goodsCode
+                        - goodsdtCode
+                        - success
+                        - method
+                        - errorMessage
                       properties:
                         goodsCode:
                           type: string
@@ -664,7 +1175,10 @@ paths:
                           description: 子品項價格異動成功或失敗
                         method:
                           type: string
-                          description: 此商品子品項價格異動為新增或修改 (Insert/Update)
+                          description: 此商品子品項價格異動為新增或修改。新增 Insert；修改 Update
+                          enum:
+                            - Insert
+                            - Update
                         errorMessage:
                           type: string
                           description: 子品項價格異動失敗時的錯誤訊息
@@ -679,12 +1193,18 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - listGoodsStockModify
               properties:
                 listGoodsStockModify:
                   type: array
                   description: 商品庫存量異動陣列
                   items:
                     type: object
+                    required:
+                      - goodsCode
+                      - goodsdtCode
+                      - quantity
                     properties:
                       goodsCode:
                         type: string
@@ -702,12 +1222,19 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - result
                 properties:
                   result:
                     type: array
                     description: 資料陣列
                     items:
                       type: object
+                      required:
+                        - goodsCode
+                        - goodsdtCode
+                        - success
+                        - errorMessage
                       properties:
                         goodsCode:
                           type: string
@@ -726,40 +1253,72 @@ paths:
       tags:
         - 商品相關
       summary: 5. 商品查詢
+      description: |
+        因應商品子品項價格，`result` 層的 `salePrice` / `custPrice` / `applyDate` 即將取消，
+        改由 `listGoodsdt` 內各子品項的同名欄位取代。
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - queryMethod
+                - saleStatus
+                - pageIndex
+                - maxPerPage
               properties:
                 queryMethod:
                   type: string
-                  description: 要查詢的商品內容 (All/SaleType/Price/Stock)
+                  description: |
+                    要查詢的商品內容。
+                    All：查詢商品上下架狀態、商品價格、商品庫存；
+                    SaleType：只查詢商品上下架狀態；
+                    Price：只查詢商品價格；
+                    Stock：只查詢商品庫存量。
+                    參數帶 All、Price 時，applyDate 為必填
+                  enum:
+                    - All
+                    - SaleType
+                    - Price
+                    - Stock
                 saleStatus:
                   type: string
-                  description: 上架或下架的商品 (All/StartSelling/StopSelling)
+                  description: |
+                    上架或下架的商品。
+                    All：查詢上架與下架的所有商品；
+                    StartSelling：只查詢上架商品；
+                    StopSelling：只查詢下架商品
+                  enum:
+                    - All
+                    - StartSelling
+                    - StopSelling
                 pageIndex:
                   type: integer
                   description: 頁次 (最小值為 1)
+                  minimum: 1
                 maxPerPage:
                   type: integer
-                  description: 每頁筆數 (100~10000)
+                  description: 每頁筆數 (最小值 100，最大值 10000)
+                  minimum: 100
+                  maximum: 10000
                 applyDate:
                   type: string
-                  description: 商品價格生效日 (yyyy-MM-dd HH:mm:ss)
+                  description: 商品價格生效日（格式 yyyy-MM-dd HH:mm:ss）。查詢內容包含商品價格時為必填
                 listGoods:
                   type: array
-                  description: 查詢商品編號及單品編號陣列
+                  description: 查詢商品編號及單品編號陣列（未填時，將查詢符合其他條件的所有商品資料）
                   items:
                     type: object
                     properties:
                       goodsCode:
                         type: string
-                        description: 商品編號
+                        description: 商品編號（指定查詢某商品時必填）
                       listGoodsdtCode:
                         type: array
-                        description: 單品編號流水碼 3 碼陣列
+                        description: |
+                          單品編號流水碼 3 碼陣列（指定查詢某單品編號時必填）。
+                          未填時，將查詢該商品編號所有的單品編號資料
                         items:
                           type: string
       responses:
@@ -769,13 +1328,29 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - requestQueryMethod
+                  - requestSaleStatus
+                  - totalGoods
+                  - pageIndex
+                  - maxPerPage
+                  - result
                 properties:
                   requestQueryMethod:
                     type: string
                     description: 請求的查詢內容
+                    enum:
+                      - All
+                      - SaleType
+                      - Price
+                      - Stock
                   requestSaleStatus:
                     type: string
                     description: 請求的商品狀態
+                    enum:
+                      - All
+                      - StartSelling
+                      - StopSelling
                   totalGoods:
                     type: integer
                     description: 符合查詢條件的資料總筆數
@@ -790,61 +1365,87 @@ paths:
                     description: 回傳的商品資料
                     items:
                       type: object
+                      required:
+                        - success
+                        - goodsCode
+                        - goodsName
+                        - saleStatus
                       properties:
                         success:
                           type: boolean
                           description: 查詢結果
                         errorMessage:
                           type: string
-                          description: 錯誤訊息
+                          nullable: true
+                          description: 錯誤訊息（success 為 false 時顯示）
                         goodsCode:
                           type: string
                           description: 商品編號
                         goodsName:
                           type: string
+                          nullable: true
                           description: 商品名稱
                         saleStatus:
                           type: string
                           description: 商品上下架狀態
+                          enum:
+                            - StartSelling
+                            - StopSelling
                         salePrice:
                           type: integer
-                          description: 商品售價 (因應商品子品項價格，此欄位將取消)
+                          nullable: true
+                          description: 商品售價（因應商品子品項價格，此欄位將取消）。查詢內容包含商品價格時顯示，否則為 null
                         custPrice:
                           type: integer
-                          description: 商品市價 (將取消)
+                          nullable: true
+                          description: 商品市價（因應商品子品項價格，此欄位將取消）。查詢內容包含商品價格時顯示，否則為 null
                         applyDate:
                           type: string
-                          description: 商品價格生效日 (將取消)
+                          nullable: true
+                          description: 商品價格生效日（因應商品子品項價格，此欄位將取消）。查詢內容包含商品價格時顯示，否則為 null
                         listGoodsdt:
                           type: array
-                          description: 單品編號及單品庫存量陣列
+                          nullable: true
+                          description: 單品編號及單品庫存量陣列。查詢結果包含單品資訊時顯示，否則為 null
                           items:
                             type: object
+                            required:
+                              - dtSaleStatus
                             properties:
                               goodsdtCode:
                                 type: string
+                                nullable: true
                                 description: 單品編號流水碼 3 碼
                               quantity:
                                 type: integer
+                                nullable: true
                                 description: 單品庫存量
                               entpGoodsNo:
                                 type: string
+                                nullable: true
                                 description: 商品原廠編號
                               goodsdtInfo:
                                 type: string
+                                nullable: true
                                 description: 單品規格
                               salePrice:
                                 type: integer
-                                description: 商品售價
+                                nullable: true
+                                description: 商品售價（因應商品子品項價格新增）。查詢內容包含價格時顯示，否則為 null
                               custPrice:
                                 type: integer
-                                description: 商品市價
+                                nullable: true
+                                description: 商品市價（因應商品子品項價格新增）。查詢內容包含價格時顯示，否則為 null
                               applyDate:
                                 type: string
-                                description: 商品價格生效日
+                                nullable: true
+                                description: 商品價格生效日（因應商品子品項價格新增）。查詢內容包含價格時顯示，否則為 null
                               dtSaleStatus:
                                 type: string
-                                description: 單品啟用/停用狀態 (on/off)
+                                description: 單品啟用/停用狀態。on：啟用、off：停用
+                                enum:
+                                  - 'on'
+                                  - 'off'
   /apiv2/VendorApi/TempGoodsmodify:
     post:
       tags:
@@ -855,7 +1456,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GoodsUpsertRequest'
+              $ref: '#/components/schemas/TempGoodsModifyRequest'
       responses:
         '200':
           description: OK
@@ -873,7 +1474,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GoodsUpsertRequest'
+              $ref: '#/components/schemas/GoodsModifyRequest'
       responses:
         '200':
           description: OK
@@ -887,15 +1488,21 @@ paths:
         - 商品相關
       summary: 8. 圖檔上傳
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - file
               properties:
                 file:
                   type: string
                   format: binary
-                  description: 檔案 (請勿上傳超過 1M)
+                  description: |
+                    檔案。請勿上傳超過 1M，建議上傳 jpg 圖檔。
+                    目前素材空間圖檔總上限為 10GB，可透過 /apiv2/VendorApi/FileQuote 查詢剩餘額度，
+                    也可透過 /apiv2/VendorApi/FileBatchRemove 批次刪除未引用的素材/圖檔來釋放空間
       responses:
         '200':
           description: OK
@@ -903,6 +1510,10 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - success
+                  - errorMessage
+                  - data
                 properties:
                   success:
                     type: boolean
@@ -912,6 +1523,13 @@ paths:
                     description: 錯誤訊息
                   data:
                     type: object
+                    description: 圖檔上傳結果
+                    required:
+                      - fileId
+                      - originFileName
+                      - contentType
+                      - fileSize
+                      - url
                     properties:
                       fileId:
                         type: string
@@ -939,6 +1557,8 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               type: object
+              required:
+                - fileId
               properties:
                 fileId:
                   type: array
@@ -952,6 +1572,10 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - success
+                  - errorMessage
+                  - data
                 properties:
                   success:
                     type: boolean
@@ -961,8 +1585,16 @@ paths:
                     description: 錯誤訊息
                   data:
                     type: array
+                    description: 圖檔資料陣列
                     items:
                       type: object
+                      required:
+                        - fileId
+                        - originalFileName
+                        - contentType
+                        - size
+                        - url
+                        - name
                       properties:
                         fileId:
                           type: string
@@ -987,13 +1619,7 @@ paths:
       tags:
         - 商品相關
       summary: 10. 商品分類清單
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties: {}
+      description: 規格書未定義 REQUEST BODY 欄位。
       responses:
         '200':
           description: OK
@@ -1001,6 +1627,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - data
                 properties:
                   success:
                     type: boolean
@@ -1011,23 +1639,7 @@ paths:
                   data:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                          description: 分類 id
-                        value:
-                          type: string
-                          description: 分類名稱
-                        isLeaf:
-                          type: string
-                          description: 是否葉子節點
-                        childrens:
-                          type: array
-                          description: 子節點
-                          items:
-                            type: object
-                            properties: {}
+                      $ref: '#/components/schemas/CategoryTreeNode'
   /apiv2/VendorApi/CategorySetting:
     get:
       tags:
@@ -1036,6 +1648,7 @@ paths:
       parameters:
         - name: categoryCode
           in: query
+          description: 分類編號
           schema:
             type: string
       responses:
@@ -1045,6 +1658,11 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - success
+                  - errCode
+                  - errMsg
+                  - data
                 properties:
                   success:
                     type: boolean
@@ -1059,6 +1677,13 @@ paths:
                     type: array
                     items:
                       type: object
+                      required:
+                        - attributeGroupID
+                        - attributeGroupName
+                        - attributeId
+                        - attributeName
+                        - isMultipleSelected
+                        - attributeValues
                       properties:
                         attributeGroupID:
                           type: string
@@ -1074,12 +1699,15 @@ paths:
                           description: 屬性展示名稱
                         isMultipleSelected:
                           type: string
-                          description: 是否能多選
+                          description: 是否能多選。0：否、1：是
                         attributeValues:
                           type: array
                           description: 属性值
                           items:
                             type: object
+                            required:
+                              - label
+                              - value
                             properties:
                               label:
                                 type: string
@@ -1095,9 +1723,9 @@ paths:
       parameters:
         - name: searchKey
           in: query
+          description: 搜索關鍵字
           schema:
             type: string
-            description: 搜索關鍵字
       responses:
         '200':
           description: OK
@@ -1105,21 +1733,35 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - success
+                  - errCode
+                  - errMsg
+                  - data
                 properties:
                   success:
                     type: boolean
                     description: 是否成功
+                  errCode:
+                    type: string
+                    description: 錯誤編號
+                  errMsg:
+                    type: string
+                    description: 錯誤信息
                   data:
                     type: array
                     items:
                       type: object
+                      required:
+                        - webBrandNo
+                        - brandName
                       properties:
                         webBrandNo:
                           type: string
                           description: 品牌編號
                         brandName:
                           type: string
-                          description: 品牌名
+                          description: 品牌名（英文名+中文名）
   /apiv2/VendorApi/ListWebBrandSeries:
     get:
       tags:
@@ -1128,9 +1770,9 @@ paths:
       parameters:
         - name: brandNo
           in: query
+          description: 品牌編號
           schema:
             type: string
-            description: 品牌編號
       responses:
         '200':
           description: OK
@@ -1138,20 +1780,37 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - success
+                  - errCode
+                  - errMsg
+                  - data
                 properties:
                   success:
                     type: boolean
                     description: 是否成功
+                  errCode:
+                    type: string
+                    description: 錯誤編號
+                  errMsg:
+                    type: string
+                    description: 錯誤信息
                   data:
                     type: array
                     items:
                       type: object
+                      required:
+                        - seriesNo
+                        - brandSeriesName
+                        - seriesNameOrig
+                        - seriesNameCh
                       properties:
                         seriesNo:
                           type: string
                           description: 品牌系列編號
                         brandSeriesName:
                           type: string
+                          nullable: true
                           description: 品牌系列名稱
                         seriesNameOrig:
                           type: string
@@ -1172,6 +1831,11 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - success
+                  - errCode
+                  - errMsg
+                  - data
                 properties:
                   success:
                     type: boolean
@@ -1186,6 +1850,9 @@ paths:
                     type: array
                     items:
                       type: object
+                      required:
+                        - categoryCode
+                        - categoryName
                       properties:
                         categoryCode:
                           type: string
@@ -1198,6 +1865,9 @@ paths:
                           description: 子分類
                           items:
                             type: object
+                            required:
+                              - categoryCode
+                              - categoryName
                             properties:
                               categoryCode:
                                 type: string
@@ -1218,6 +1888,11 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - success
+                  - errCode
+                  - errMsg
+                  - data
                 properties:
                   success:
                     type: boolean
@@ -1232,6 +1907,12 @@ paths:
                     type: array
                     items:
                       type: object
+                      required:
+                        - outplaceSeq
+                        - outplacePost
+                        - guName
+                        - dongName
+                        - outplaceAddr
                       properties:
                         outplaceSeq:
                           type: string
@@ -1256,9 +1937,9 @@ paths:
       parameters:
         - name: categoryCode
           in: query
+          description: 分類編號
           schema:
             type: string
-            description: 分類編號
       responses:
         '200':
           description: OK
@@ -1266,30 +1947,57 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - success
+                  - errCode
+                  - errMsg
+                  - data
                 properties:
                   success:
                     type: boolean
                     description: 是否成功
+                  errCode:
+                    type: string
+                    description: 錯誤編號
+                  errMsg:
+                    type: string
+                    description: 錯誤信息
                   data:
                     type: object
                     properties:
                       isEnvMedicineCategory:
-                        type: string
+                        type: boolean
                         description: 是否填寫環境用藥分類
                       kinds:
                         type: string
-                        description: 分類識別 (1:應免稅, 2:約定送貨)
+                        description: |
+                          分類識別。
+                          1：應免稅，表示 /TempGoodsmodify 或 /GoodsModify 的 nsTaxDone 需填寫；
+                          2：約定送貨，表示 /TempGoodsmodify 或 /GoodsModify 的 nsAppShippingDone 需填寫
+                        enum:
+                          - '1'
+                          - '2'
                       content:
                         type: object
-                        description: 分類規格描述
+                        description: |
+                          分類規格描述，提供 /VendorApi/TempGoodsmodify 和 /VendorApi/GoodsModify 的 goodsNote 內容。
+                          為動態鍵值結構，key 是題目（例如「1.商品組合/規格：」），value 為空字串。
+                          goodsNote 填寫時將各題目以換行符號 (\n) 串接，例：
+                          "1.商品組合/規格：範例商品\n2.商品重(容)量：2kg\n...備註欄：備註"
+                        additionalProperties:
+                          type: string
+                      categoryNs:
+                        type: object
+                        description: 特殊類別
                         properties:
-                          categoryNs:
-                            type: object
-                            description: 特殊類別
-                            properties:
-                              appShippingYn:
-                                type: string
-                                description: 是否需填寫約定送貨 (0:否, 1:是)
+                          appShippingYn:
+                            type: string
+                            description: |
+                              是否需填寫約定送貨。0：否、1：是。
+                              如值為 1，表示 /TempGoodsmodify 或 /GoodsModify 的 nsAppShippingDone 需填寫
+                            enum:
+                              - '0'
+                              - '1'
   /apiv2/VendorApi/ModifySkuSaleGb:
     post:
       tags:
@@ -1310,7 +2018,10 @@ paths:
                   description: 規格(sku)編號
                 saleGb:
                   type: string
-                  description: 規格狀態 (on:啟用 off:停用)
+                  description: 規格狀態。on：啟用、off：停用
+                  enum:
+                    - 'on'
+                    - 'off'
       responses:
         '200':
           description: OK
@@ -1318,10 +2029,13 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - data
+                  - success
                 properties:
                   data:
                     type: boolean
-                    description: 異動是否成功
+                    description: 異動是否成功。true：成功、false：失敗
                   success:
                     type: boolean
                     description: 是否成功
@@ -1339,7 +2053,7 @@ paths:
               properties:
                 fileNameLike:
                   type: string
-                  description: 文件/圖檔名 (模糊查詢)
+                  description: 文件/圖檔名（模糊查詢）
                 pageIndex:
                   type: integer
                   description: 頁碼
@@ -1353,11 +2067,26 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - data
+                  - page
+                  - success
+                  - errCode
+                  - errMsg
                 properties:
                   data:
                     type: array
                     items:
                       type: object
+                      required:
+                        - id
+                        - groupId
+                        - originFileName
+                        - fileType
+                        - fileSize
+                        - accessUrl
+                        - resolution
+                        - hasRel
                       properties:
                         id:
                           type: integer
@@ -1382,10 +2111,21 @@ paths:
                           description: 圖片像素
                         hasRel:
                           type: boolean
-                          description: 是否被選用
+                          description: 是否被選用（該圖片是否有被商品使用過）
                   page:
                     type: object
                     description: 分頁信息
+                    required:
+                      - pageIndex
+                      - pageSize
+                      - startRow
+                      - endRow
+                      - total
+                      - pages
+                      - hasPreviousPage
+                      - hasNextPage
+                      - lastPage
+                      - firstPage
                     properties:
                       pageIndex:
                         type: integer
@@ -1431,13 +2171,7 @@ paths:
       tags:
         - 商品相關
       summary: 19. 查詢自訂物流運費清單
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties: {}
+      description: 規格書未定義 REQUEST BODY 欄位。
       responses:
         '200':
           description: OK
@@ -1445,11 +2179,19 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - data
+                  - success
+                  - errCode
+                  - errMsg
                 properties:
                   data:
                     type: array
                     items:
                       type: object
+                      required:
+                        - logisticsNo
+                        - freight
                       properties:
                         logisticsNo:
                           type: string
@@ -1471,13 +2213,7 @@ paths:
       tags:
         - 商品相關
       summary: 20. 查詢素材/圖檔空間大小
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              properties: {}
+      description: 規格書未定義 REQUEST BODY 欄位。
       responses:
         '200':
           description: OK
@@ -1485,9 +2221,17 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - data
+                  - success
+                  - errCode
+                  - errMsg
                 properties:
                   data:
                     type: object
+                    required:
+                      - totalCapacity
+                      - usedCapacity
                     properties:
                       totalCapacity:
                         type: integer
@@ -1518,10 +2262,10 @@ paths:
               properties:
                 idList:
                   type: array
-                  description: 圖檔/文件 id 列表
+                  description: '圖檔/文件 id 列表，例：[1114283892179603, 1114283892179604]'
                   items:
-                    type: object
-                    properties: {}
+                    type: integer
+                    format: int64
       responses:
         '200':
           description: OK
@@ -1529,6 +2273,11 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - data
+                  - success
+                  - errCode
+                  - errMsg
                 properties:
                   data:
                     type: boolean
@@ -1553,51 +2302,128 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - pageIndex
+                - maxPerPage
+                - queryDateType
+                - fromDate
+                - toDate
+                - deliveryType
+                - orderStatus
               properties:
                 pageIndex:
                   type: integer
-                  description: 頁次
+                  description: 頁次 (最小值為 1)
+                  minimum: 1
                 maxPerPage:
                   type: integer
-                  description: 每頁筆數
+                  description: 每頁筆數 (最小值 100，最大值 10000)
+                  minimum: 100
+                  maximum: 10000
                 listOrderNo:
                   type: array
-                  description: 訂單編號字串陣列
+                  description: |
+                    訂單編號字串陣列。當此陣列有值時，則無視其他條件（指定訂單編號查詢）。
+                    支援 14 碼訂單編號（例：64032500051951），也支援 18 碼訂單編號-流水碼（例：64032500051951-001）。
+                    不支援模糊查詢。使用此欄位查詢時，預設查詢 360 日內訂單
                   items:
                     type: string
                 queryDateType:
                   type: string
-                  description: 查詢日期區間類別
+                  description: |
+                    查詢日期區間類別（擇一）。
+                    OrderDate：訂單日期；
+                    ShipDate：出貨日期；
+                    RecycleDate：回收日期；
+                    LastShipDate：最晚出貨日期；
+                    EntpReturnDate：廠商退貨日期
+                  enum:
+                    - OrderDate
+                    - ShipDate
+                    - RecycleDate
+                    - LastShipDate
+                    - EntpReturnDate
                 fromDate:
                   type: string
-                  description: 查詢起始日期
+                  description: 查詢起始日期（起迄日期最大區間 30 日。格式：20240301 或 2024/03/01 或 2024-03-01）
                 toDate:
                   type: string
-                  description: 查詢迄止日期
+                  description: 查詢迄止日期（起迄日期最大區間 30 日。格式：20240301 或 2024/03/01 或 2024-03-01）
                 deliveryType:
                   type: string
-                  description: 配送類型
+                  description: |
+                    配送類型（擇一）。
+                    All：全部；Home：宅配；Store：超取；ThirdParty：第三方物流
+                  enum:
+                    - All
+                    - Home
+                    - Store
+                    - ThirdParty
                 storeDeliveryType:
                   type: string
-                  description: 超取分類
+                  description: |
+                    超取分類。當 deliveryType 為 Store 時必填；當 deliveryType 為 All 時，此條件自動為 All 且需必填。
+                    All：全部；
+                    StoreToStoreShip：店到店配送；
+                    StoreToStoreReturn：店到店退貨；
+                    WarehouseToStoreShip：倉到店配送；
+                    StoreToWarehouseReturn：店到倉退貨
+                  enum:
+                    - All
+                    - StoreToStoreShip
+                    - StoreToStoreReturn
+                    - WarehouseToStoreShip
+                    - StoreToWarehouseReturn
                 orderStatus:
                   type: string
-                  description: 訂單狀態
+                  description: |
+                    訂單狀態（擇一）。
+                    All：全部；Unpaid：未付款；NotShipped：未出貨(未印單)；NotRecycled：未回收；
+                    Printed：已印單；Shipping：配送中；DoneDelivery：配送結束；AbnormalDelivery：配送異常；
+                    OrderCancelled：取消訂單；ReturnCancelled：取消退貨；RecycleConfirmed：回收確認。
+
+                    查詢日期區間類別對應可顯示的訂單狀態：
+                    OrderDate、LastShipDate 支援所有訂單狀態；
+                    ShipDate 支援出貨訂單的狀態；
+                    RecycleDate 支援回收訂單的狀態；
+                    EntpReturnDate 支援廠商退貨訂單的狀態
+                  enum:
+                    - All
+                    - Unpaid
+                    - NotShipped
+                    - NotRecycled
+                    - Printed
+                    - Shipping
+                    - DoneDelivery
+                    - AbnormalDelivery
+                    - OrderCancelled
+                    - ReturnCancelled
+                    - RecycleConfirmed
                 goodsNo:
                   type: string
-                  description: 商品編號
+                  description: 商品編號（支援模糊查詢）
                 goodsName:
                   type: string
-                  description: 商品名稱
+                  description: 商品名稱（支援模糊查詢）
                 entpGoodsNo:
                   type: string
-                  description: 商品原廠編號
+                  description: 商品原廠編號（支援模糊查詢）
                 customerName:
                   type: string
-                  description: 訂購人姓名
+                  description: 訂購人姓名（支援模糊查詢）
                 orderChangeAddrStatus:
                   type: string
-                  description: 更換地址的狀態
+                  description: |
+                    更換地址的狀態。
+                    toBeChanged：查詢申請更換地址的訂單；
+                    changed：查詢新地址（已同意更換地址）的訂單；
+                    notChanged：查詢原地址（拒絕更換地址／或無申請更換地址）的訂單；
+                    All：查詢所有訂單，包含沒申請過更換地址的訂單
+                  enum:
+                    - toBeChanged
+                    - changed
+                    - notChanged
+                    - All
       responses:
         '200':
           description: OK
@@ -1605,16 +2431,22 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - pageIndex
+                  - maxPerPage
+                  - totalOrders
+                  - listOrder
                 properties:
                   errorMessage:
                     type: string
+                    nullable: true
                     description: 請求失敗時的錯誤訊息
                   pageIndex:
                     type: integer
-                    description: 頁次
+                    description: 頁次 (最小值為 1)
                   maxPerPage:
                     type: integer
-                    description: 每頁筆數
+                    description: 每頁筆數 (最小值 100，最大值 10000)
                   totalOrders:
                     type: integer
                     description: 符合查詢條件的訂單總筆數
@@ -1623,46 +2455,89 @@ paths:
                     description: 訂單陣列
                     items:
                       type: object
+                      required:
+                        - orderNo
+                        - listItem
                       properties:
                         orderNo:
                           type: string
+                          maxLength: 15
                           description: 訂單編號
                         errorMessage:
                           type: string
+                          nullable: true
                           description: 錯誤訊息
                         listItem:
                           type: array
                           description: 訂單品項陣列
                           items:
                             type: object
+                            required:
+                              - orderSeq
+                              - itemStatus
+                              - goodsNo
+                              - goodsdtCode
+                              - goodsName
+                              - goodsInfo1
+                              - goodsInfo2
+                              - entpGoodsNo
+                              - goodsType
+                              - quantity
+                              - taxable
+                              - orderAmount
+                              - customerNo
+                              - customerName
+                              - receiverName
+                              - shipStatus
+                              - receiverAddress
+                              - lastProcDate
+                              - storeReturnDeliveryType
+                              - planShipDate
+                              - deliveryTemp
                             properties:
+                              errorMessage:
+                                type: string
+                                nullable: true
+                                description: 錯誤訊息
                               orderSeq:
                                 type: string
+                                maxLength: 3
                                 description: 訂單品項流水號
                               itemStatus:
                                 type: string
+                                maxLength: 10
                                 description: 訂單品項狀態
                               goodsNo:
                                 type: string
+                                maxLength: 16
                                 description: 商品編號
                               goodsdtCode:
                                 type: string
+                                maxLength: 3
                                 description: 商品子品項
                               goodsName:
                                 type: string
+                                maxLength: 300
                                 description: 商品名稱
                               goodsInfo1:
                                 type: string
+                                nullable: true
+                                maxLength: 100
                                 description: 商品規格一
                               goodsInfo2:
                                 type: string
+                                nullable: true
+                                maxLength: 100
                                 description: 商品規格二
                               entpGoodsNo:
                                 type: string
+                                nullable: true
+                                maxLength: 150
                                 description: 商品原廠編號
                               goodsType:
                                 type: string
-                                description: 商品屬性
+                                maxLength: 2
+                                description: 商品屬性（例：一般、運費）
                               quantity:
                                 type: integer
                                 description: 數量
@@ -1671,99 +2546,119 @@ paths:
                                 description: 預計出貨日
                               shipDate:
                                 type: string
+                                nullable: true
+                                maxLength: 20
                                 description: 出貨日期
                               entpReturnDate:
                                 type: string
+                                nullable: true
+                                maxLength: 20
                                 description: 廠商退貨日期
                               recycleDate:
                                 type: string
+                                nullable: true
+                                maxLength: 20
                                 description: 回收日期
-                              shipPack:
-                                type: string
-                                description: 出貨包材
-                              packType:
-                                type: string
-                                description: 包材類型
-                              packWeight:
-                                type: string
-                                description: 包材重量
                               deliveryType:
                                 type: string
+                                nullable: true
+                                maxLength: 6
                                 description: 配送類型
                               customerDeliveryType:
                                 type: string
+                                nullable: true
                                 description: 消費者選擇配送方式
                               deliveryCompany:
                                 type: string
+                                nullable: true
                                 description: 物流公司
                               deliveryNo:
                                 type: string
+                                nullable: true
                                 description: 配送單號
                               taxable:
                                 type: boolean
-                                description: 應稅/未稅
+                                description: 應稅/未稅。true：應稅、false：免稅
                               orderAmount:
                                 type: integer
                                 description: 訂單金額
                               invoiceAmount:
                                 type: integer
+                                nullable: true
                                 description: 開立發票金額
                               invoiceNo:
                                 type: string
+                                nullable: true
                                 description: 發票號碼
                               invoiceDate:
                                 type: string
+                                nullable: true
                                 description: 發票日期
                               customerNo:
                                 type: string
+                                maxLength: 12
                                 description: 客戶個人識別碼
                               customerName:
                                 type: string
-                                description: 訂購人姓名
+                                maxLength: 20
+                                description: 訂購人姓名（當訂單為宅配且未出貨時顯示，否則遮罩之）
                               receiverName:
                                 type: string
-                                description: 收件人姓名
+                                maxLength: 100
+                                description: 收件人姓名（當訂單為宅配且未出貨時顯示，否則遮罩之）
                               customerDeliveryMessage:
                                 type: string
+                                nullable: true
                                 description: 客戶配送需求
                               storeReturnMessage:
                                 type: string
+                                nullable: true
                                 description: 超取廠退訊息
                               returnReason:
                                 type: string
+                                nullable: true
                                 description: 退貨原因
                               shipStatus:
                                 type: string
                                 description: 商品貨態
                               ivr:
                                 type: string
-                                description: 客戶聯絡電話 IVR 號碼
+                                nullable: true
+                                description: 客戶聯絡電話 IVR 號碼（當 IVR 設置為關閉時，此欄位為 null）
                               receiverAddress:
                                 type: string
-                                description: 收件人地址
+                                description: 收件人地址（當訂單為宅配且未出貨時顯示，否則遮罩之）
                               lastProcDate:
                                 type: string
-                                description: 轉單日
+                                description: |
+                                  轉單日。顯示為 itemStatus 狀態的轉單日期，
+                                  例如當 itemStatus 為「訂單接獲(未付款)」，轉單日即為訂單成立日期
                               storeReturnDeliveryType:
                                 type: string
-                                description: 超商退貨配送方式
+                                nullable: true
+                                description: 超商退貨配送方式（當客戶退貨以超商退貨時顯示）
                               outplaceSeq:
                                 type: string
-                                description: 出貨回收地址代碼
+                                nullable: true
+                                description: 出貨回收地址代碼（僅第三方物流訂單會有此參數）
                               outplaceAddr:
                                 type: string
-                                description: 出貨回收地址
+                                nullable: true
+                                description: 出貨回收地址（僅第三方物流訂單會有此參數）
                               deliveryTemp:
                                 type: string
-                                description: 配送溫層
+                                description: 配送溫層。常溫、冷凍、冷藏
                               changedAddress:
                                 type: string
+                                nullable: true
                                 description: 客人申請的新地址
                               corpSIdno:
                                 type: string
+                                nullable: true
                                 description: 發票開立統編
                               corpName:
                                 type: string
+                                nullable: true
                                 description: 發票開立公司名稱
   /VendorApi/OrderShippingStatusConfirmHomeDelivery:
     post:
@@ -1776,12 +2671,21 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - listItem
               properties:
                 listItem:
                   type: array
                   description: 訂單項變價陣列
                   items:
                     type: object
+                    required:
+                      - orderNo
+                      - orderSeq
+                      - deliveryStatus
+                      - deliveryNote
+                      - deliveryCompany
+                      - deliveryNo
                     properties:
                       orderNo:
                         type: string
@@ -1789,30 +2693,53 @@ paths:
                       orderSeq:
                         type: string
                         description: 訂單品項流水號
-                      shipPack:
-                        type: string
-                        description: 出貨包材
-                      packType:
-                        type: string
-                        description: 包材類型
-                      packUnit:
-                        type: string
-                        description: 包材重量(公克)
                       deliveryStatus:
                         type: string
-                        description: 配送狀態（必填；Shipped：已配送/可出貨；PhoneUnreachable：電聯不上；ScheduledDeliveryDate：指定配送日；ContactedPendingDate：已電聯、尚未確認配送日期；AdditionalPurchasePending：需配送加購協調中；CancelNoStockOrder：無貨取消訂單；WrongInfoOrInvalidArea：收件資料有誤/不配送地區；StoreNote：商店備註）
+                        description: |
+                          配送狀態。
+                          Shipped：已配送/可出貨；
+                          PhoneUnreachable：電聯不上；
+                          ScheduledDeliveryDate：指定配送日；
+                          ContactedPendingDate：已電聯、尚未確認配送日期；
+                          AdditionalPurchasePending：需配送加購協調中；
+                          CancelNoStockOrder：無貨取消訂單；
+                          WrongInfoOrInvalidArea：收件資料有誤/不配送地區；
+                          StoreNote：商店備註
+                        enum:
+                          - Shipped
+                          - PhoneUnreachable
+                          - ScheduledDeliveryDate
+                          - ContactedPendingDate
+                          - AdditionalPurchasePending
+                          - CancelNoStockOrder
+                          - WrongInfoOrInvalidArea
+                          - StoreNote
                       deliveryDate:
                         type: string
-                        description: 指定配送日（非必填；格式 YYYY-MM-dd；deliveryStatus 為 ScheduledDeliveryDate 時必填）
+                        description: 指定配送日（格式 YYYY-MM-dd；deliveryStatus 為 ScheduledDeliveryDate 時必填）
                       deliveryNote:
                         type: string
-                        description: 配送訊息（必填；可為空字串）
+                        description: 配送訊息（必填，可帶空值）
                       deliveryCompany:
                         type: string
-                        description: 物流公司（必填；Pelican：宅配通；HCT：新竹貨運；TCAT：統一速達；KerryTJ：大榮貨運；Migo：東元物流；SFExpress：順豐速運；OtherCourier：其他宅配；PostOffice：郵局；Maple：便利帶；Other：其他）
+                        description: |
+                          物流公司。
+                          Pelican：宅配通；HCT：新竹貨運；TCAT：統一速達；KerryTJ：大榮貨運；Migo：東元物流；
+                          SFExpress：順豐速運；OtherCourier：其他宅配；PostOffice：郵局；Maple：便利帶；Other：其他
+                        enum:
+                          - Pelican
+                          - HCT
+                          - TCAT
+                          - KerryTJ
+                          - Migo
+                          - SFExpress
+                          - OtherCourier
+                          - PostOffice
+                          - Maple
+                          - Other
                       deliveryNo:
                         type: string
-                        description: 配送單號（必填）
+                        description: 配送單號
       responses:
         '200':
           description: OK
@@ -1831,43 +2758,42 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - listItem
               properties:
                 listItem:
                   type: array
                   description: 訂單項變價陣列
                   items:
                     type: object
+                    required:
+                      - deliveryStatus
+                      - deliveryNote
                     properties:
                       newBoxYn:
                         type: string
                         description: 倂箱號
                       deliveryStatus:
                         type: string
-                        description: 配送狀態
+                        description: |
+                          配送狀態。
+                          Shipped：已配送/可出貨；
+                          CancelNoStockOrder：無貨取消訂單；
+                          OtherDeliverTypeOrMissIngBox：已用其它方式出貨或漏併箱；
+                          StoreNote：商店備註
+                        enum:
+                          - Shipped
+                          - CancelNoStockOrder
+                          - OtherDeliverTypeOrMissIngBox
+                          - StoreNote
                       deliveryNote:
                         type: string
-                        description: 配送訊息
-                      shipPack:
-                        type: string
-                        description: 出貨包材
-                      packType:
-                        type: string
-                        description: 包材類型
-                      packUnit:
-                        type: string
-                        description: 包材重量(公克)
+                        description: 配送訊息（必填，可帶空值）
                       orderList:
                         type: array
                         description: 訂單列表
                         items:
-                          type: object
-                          properties:
-                            orderNo:
-                              type: string
-                              description: 訂單編號
-                            orderSeq:
-                              type: string
-                              description: 訂單品項流水號
+                          $ref: '#/components/schemas/OrderRef'
       responses:
         '200':
           description: OK
@@ -1875,6 +2801,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - confirmDeliveryDetailResList
                 properties:
                   success:
                     type: boolean
@@ -1887,37 +2815,50 @@ paths:
                     description: 確認結果明細
                     items:
                       type: object
+                      required:
+                        - deliveryStatus
+                        - slipNo
+                        - delyGb
+                        - printLable
+                        - printDetail
+                        - printAll
+                        - success
+                        - message
                       properties:
                         newBoxYn:
                           type: string
                           description: 倂箱號
+                        slipNo:
+                          type: string
+                          description: 三方物流單號
+                        delyGb:
+                          type: string
+                          description: 三方物流商（例：新竹貨運）
                         deliveryStatus:
                           type: string
                           description: 配送狀態
+                          enum:
+                            - Shipped
+                            - CancelNoStockOrder
+                            - OtherDeliverTypeOrMissIngBox
+                            - StoreNote
                         deliveryNote:
                           type: string
                           description: 配送訊息
                         printLable:
                           type: string
-                          description: 列印標籤
+                          description: 列印標籤下載地址
                         printDetail:
                           type: string
-                          description: 列印明細
+                          description: 列印明細下載地址
                         printAll:
                           type: string
-                          description: 列印出貨總表
+                          description: 列印出貨總表下載地址
                         orderList:
                           type: array
                           description: 訂單列表
                           items:
-                            type: object
-                            properties:
-                              orderNo:
-                                type: string
-                                description: 訂單編號
-                              orderSeq:
-                                type: string
-                                description: 訂單品項流水號
+                            $ref: '#/components/schemas/OrderRef'
                         success:
                           type: boolean
                           description: 是否成功
@@ -1934,7 +2875,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConvenienceStoreDeliveryConfirmationRequest'
+              $ref: '#/components/schemas/SevenStoreDeliveryConfirmationRequest'
       responses:
         '200':
           description: OK
@@ -1953,15 +2894,26 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - delyWay
+                - listItem
               properties:
                 delyWay:
                   type: string
-                  description: 退貨方式
+                  description: 退貨方式。1：宅配、2：超商、3：第三方物流
+                  enum:
+                    - '1'
+                    - '2'
+                    - '3'
                 listItem:
                   type: array
-                  description: 訂單項變價陣列
+                  description: 訂單項變價陣列（運費可不用提供）
                   items:
                     type: object
+                    required:
+                      - orderNo
+                      - orderSeq
+                      - delayType
                     properties:
                       orderNo:
                         type: string
@@ -1971,22 +2923,50 @@ paths:
                         description: 訂單品項流水號
                       delayType:
                         type: string
-                        description: 回收狀態
+                        description: |
+                          回收狀態。
+                          Recover：已回收；
+                          PhoneUnreachable：電聯不上（限宅配使用）；
+                          ScheduledRecoverDate：指定回收日（限宅配使用）；
+                          RecoverError：客戶回收異常；
+                          GoodsCheck：商品回收檢查中；
+                          StoreNote：商家備註
+                        enum:
+                          - Recover
+                          - PhoneUnreachable
+                          - ScheduledRecoverDate
+                          - RecoverError
+                          - GoodsCheck
+                          - StoreNote
                       smRecoverDate:
                         type: string
-                        description: 指定回收日
+                        description: 指定回收日（格式 YYYY-MM-dd；限宅配使用）
                       recoverNote:
                         type: string
-                        description: 備註訊息（非必填；限宅配回收使用）
+                        description: 備註訊息（限宅配回收使用）
                       msgNote:
                         type: string
                         description: 備註訊息
                       deliveryCompany:
                         type: string
-                        description: 物流公司
+                        description: |
+                          物流公司（限 宅配 及 超取倉到店-客未取退回 使用）。
+                          Pelican：宅配通；HCT：新竹貨運；TCAT：統一速達；KerryTJ：大榮貨運；Migo：東元物流；
+                          SFExpress：順豐速運；OtherCourier：其他宅配；PostOffice：郵局；Maple：便利帶；Other：其他
+                        enum:
+                          - Pelican
+                          - HCT
+                          - TCAT
+                          - KerryTJ
+                          - Migo
+                          - SFExpress
+                          - OtherCourier
+                          - PostOffice
+                          - Maple
+                          - Other
                       deliveryNo:
                         type: string
-                        description: 配送單號
+                        description: 配送單號（限 宅配 及 超取倉到店-客未取退回 使用）
       responses:
         '200':
           description: OK
@@ -2004,7 +2984,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConvenienceStoreLabelRequest'
+              $ref: '#/components/schemas/SevenStoreLabelRequest'
       responses:
         '200':
           description: OK
@@ -2023,6 +3003,8 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - listItem
               properties:
                 listItem:
                   type: array
@@ -2032,16 +3014,9 @@ paths:
                     properties:
                       orderList:
                         type: array
-                        description: 訂單列表
+                        description: 訂單列表（同一筆訂單同一個宅單）
                         items:
-                          type: object
-                          properties:
-                            orderNo:
-                              type: string
-                              description: 訂單編號
-                            orderSeq:
-                              type: string
-                              description: 訂單品項流水號
+                          $ref: '#/components/schemas/OrderRef'
       responses:
         '200':
           description: OK
@@ -2049,6 +3024,8 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - orderPrintLabelResList
                 properties:
                   success:
                     type: boolean
@@ -2061,28 +3038,29 @@ paths:
                     description: 確認結果明細
                     items:
                       type: object
+                      required:
+                        - printLable
+                        - printDetail
+                        - printAll
+                        - message
                       properties:
                         printLable:
                           type: string
                           description: 列印標籤
                         printDetail:
                           type: string
-                          description: 列印明細
+                          description: 列印明細（字串流，收到檔案請用統編解密）
                         printAll:
                           type: string
-                          description: 列印出貨總表
+                          description: 列印出貨總表（第三方物流出貨訂單由此項）
                         orderList:
                           type: array
                           description: 訂單列表
                           items:
-                            type: object
-                            properties:
-                              orderNo:
-                                type: string
-                                description: 訂單編號
-                              orderSeq:
-                                type: string
-                                description: 訂單品項流水號
+                            $ref: '#/components/schemas/OrderRef'
+                        message:
+                          type: string
+                          description: 信息
   /VendorApi/OrderShippingStatusConfirmFamilyStoreDelivery:
     post:
       tags:
@@ -2093,7 +3071,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConvenienceStoreDeliveryConfirmationRequest'
+              $ref: '#/components/schemas/FamilyStoreDeliveryConfirmationRequest'
       responses:
         '200':
           description: OK
@@ -2111,7 +3089,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConvenienceStoreLabelRequest'
+              $ref: '#/components/schemas/FamilyStoreLabelRequest'
       responses:
         '200':
           description: OK
@@ -2130,19 +3108,24 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - listOrderChangeAddr
               properties:
                 listOrderChangeAddr:
                   type: array
                   description: 資料陣列
                   items:
                     type: object
+                    required:
+                      - orderNo
+                      - isArgeeChgAddr
                     properties:
                       orderNo:
                         type: string
                         description: 訂單編號
                       isArgeeChgAddr:
                         type: boolean
-                        description: 同意/拒絕更換地址 (0:拒絕, 1:同意)
+                        description: 同意/拒絕更換地址。0：拒絕、1：同意
       responses:
         '200':
           description: OK
@@ -2150,12 +3133,18 @@ paths:
             application/json:
               schema:
                 type: object
+                required:
+                  - result
                 properties:
                   result:
                     type: array
                     description: 資料陣列
                     items:
                       type: object
+                      required:
+                        - orderNo
+                        - success
+                        - errorMessage
                       properties:
                         orderNo:
                           type: string
