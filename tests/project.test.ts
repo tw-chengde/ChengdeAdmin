@@ -82,33 +82,11 @@ async function collectDashboardRoutes(): Promise<string[]> {
   return routes;
 }
 
-test("includes Google authentication and a protected dashboard", async () => {
-  const [auth, dashboardLayout, dashboardPage, home, login] = await Promise.all([
-    read("auth.ts"),
-    read("app/dashboard/layout.tsx"),
-    read("app/dashboard/page.tsx"),
-    read("app/page.tsx"),
-    read("app/login-screen.tsx"),
-  ]);
-
-  assert.match(auth, /betterAuth\(/);
-  assert.match(auth, /socialProviders/);
-  assert.match(auth, /google:\s*\{/);
-  assert.match(dashboardLayout, /getSession\(\)/);
-  assert.match(dashboardLayout, /redirect\("\/"\)/);
-  assert.match(dashboardPage, /redirect\("\/dashboard\/orders"\)/);
-  assert.match(home, /getSession\(\)/);
-  assert.match(home, /redirect\("\/dashboard"\)/);
-  assert.match(login, /使用 Google(?: 帳號)?登入/);
-});
-
-// 這兩項少了任何一個，登入/登出都會在 Cloudflare Workers 上安靜地壞掉：
-// 沒有 database 會落到記憶體 adapter，沒有 nextCookies 則 server action 清不掉 cookie。
-test("persists auth state in D1 and forwards cookies from server actions", async () => {
-  const auth = await read("auth.ts");
-
-  assert.match(auth, /database:\s*getD1Database\(\)/);
-  assert.match(auth, /nextCookies\(\)/);
+// Better Auth 的設定（socialProviders／database／nextCookies）與各頁的 redirect 行為，
+// 分別由 auth.test.ts 與 routes.test.tsx 以實際執行的方式驗證，這裡不再重複掃原始碼。
+// 登入畫面的入口文字沒有其他測試涵蓋，留在這裡。
+test("the login screen offers Google sign-in", async () => {
+  assert.match(await read("app/login-screen.tsx"), /使用 Google(?: 帳號)?登入/);
 });
 
 test("every sidebar nav item points to an existing dashboard route", async () => {

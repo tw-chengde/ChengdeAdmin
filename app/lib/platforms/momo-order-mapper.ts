@@ -1,7 +1,7 @@
 import type { OrderItem } from "@/app/types/order";
 import { MOMO_STORE_DELIVERY_TYPE_OPTIONS } from "./definitions";
 import { groupBy, normalizeOrderDate, toFiniteNumber } from "./mapper-utils";
-import type { MomoShippingOrder, MomoUnshippedOrder } from "./momo-scm-client";
+import type { MomoOrderGoodsStatisticsRecord, MomoShippingOrder, MomoUnshippedOrder } from "./momo-scm-client";
 
 /** 超商品牌名稱沿用「超取分類」下拉選單的標籤，兩邊才不會出現兩套超商名稱。 */
 const storeBrandByDeliveryType = new Map<string, string>(
@@ -88,4 +88,56 @@ export function mapMomoShippingOrders(rows: MomoShippingOrder[]): OrderItem[] {
       note: first.scm_msg ?? first.msg_note ?? undefined,
     };
   });
+}
+
+/**
+ * 將 SCM「訂單商品接單統計 (orderGoodsStatisticsQuery)」的商品銷售記錄轉為儀表板訂單模型，
+ * 供營運總覽計算查詢區間內的銷售總金額與訂單量。
+ *
+ * 兩個來自 API 本身的限制，不是這裡可以補的：
+ * 1. 回應沒有任何日期欄位，因此 `createdAt` 一律留空——這批資料無法貢獻每日走勢。
+ *    區間總額仍然正確，因為查詢時已用 stDate／edDate 圈定範圍。
+ * 2. 回應沒有售價，只有 buyPrice（進價含稅），所以金額是以進價估算的。
+ */
+export function mapMomoOrderGoodsStatistics(rows: MomoOrderGoodsStatisticsRecord[]): OrderItem[] {
+  const result: OrderItem[] = [];
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    const goodsCode = String(row.goodsCode ?? "");
+    const goodsName = String(row.goodsName ?? "momo商品");
+    const spec = String(row.goodsDtInfo ?? "");
+    // orderQty 已是「訂購-取消」的淨量，再扣掉客退數量才是實際成交量。
+    const netQty = toFiniteNumber(row.orderQty) - toFiniteNumber(row.claimQty);
+    if (netQty <= 0) {
+      continue;
+    }
+    const unitPrice = toFiniteNumber(row.buyPrice);
+    const amount = netQty * unitPrice;
+
+    result.push({
+      id: `momo:stat:${goodsCode || "item"}-${index}`,
+      channel: "MOMO 購物網",
+      channelCode: "MOMO_MAIN" as const,
+      orderNo: goodsCode ? `MO-STAT-${goodsCode}-${index + 1}` : `MO-STAT-${index + 1}`,
+      customerName: "MOMO 顧客",
+      address: "",
+      items: [
+        {
+          name: goodsName,
+          spec,
+          qty: netQty,
+          price: unitPrice,
+        },
+      ],
+      totalAmount: amount,
+      status: "已完成" as const,
+      logistics: "MOMO 配送",
+      trackingNo: "",
+      // 這支 API 不回傳日期，不編造一個；留空的訂單不會被算進任何一天的走勢。
+      createdAt: "",
+    });
+  }
+
+  return result;
 }

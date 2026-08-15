@@ -1,7 +1,7 @@
 import { allowedValuesFromEnvironment } from "./config";
 import type { PlatformConnector, PlatformOrderQuery } from "./connector";
 import { MOMO_SHIPPING_STATUS_OPTIONS, MOMO_STORE_DELIVERY_TYPE_OPTIONS, momoDefinition } from "./definitions";
-import { mapMomoShippingOrders, mapMomoUnshippedOrders } from "./momo-order-mapper";
+import { mapMomoOrderGoodsStatistics, mapMomoShippingOrders, mapMomoUnshippedOrders } from "./momo-order-mapper";
 import { mapMomoGoodsBasicData } from "./momo-product-mapper";
 import { MomoScmClient } from "./momo-scm-client";
 import type { ListingStatusFilter } from "./product";
@@ -110,6 +110,9 @@ export function createMomoConnector(options: MomoConnectorOptions = {}): Platfor
     definition: momoDefinition,
     async fetchOrders(query) {
       const client = createClient();
+      if (query.status === "STATISTICS") {
+        return mapMomoOrderGoodsStatistics(await client.queryOrderGoodsStatistics(query));
+      }
       if (query.status === "UNSHIPPED") return fetchUnshipped(client, query);
       if (query.status === "SHIPPING") return fetchShipping(client, query);
       const [unshippedOrders, shippingOrders] = await Promise.all([

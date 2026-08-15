@@ -40,6 +40,27 @@ async function renderOrders() {
   await screen.findAllByRole("tab");
 }
 
+/** 按下搜尋列的「載入訂單」。 */
+function submitSearch() {
+  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
+  assert.ok(searchButton);
+  fireEvent.click(searchButton);
+}
+
+/** 依序展開下拉選單並選取指定選項。 */
+async function selectOptions(selections: string[][]) {
+  for (const [label, option] of selections) {
+    fireEvent.mouseDown(screen.getByLabelText(label));
+    fireEvent.click(await screen.findByRole("option", { name: option }));
+  }
+}
+
+/** 最後一次查詢送出的通路與篩選條件。 */
+function lastQuery() {
+  const call = loadOrdersPageData.mock.calls.at(-1);
+  return { channel: call?.[1], filters: call?.[2] };
+}
+
 test("分頁只顯示啟用中的平台", async () => {
   await renderOrders();
 
@@ -64,9 +85,7 @@ test("does not request orders until search is submitted", async () => {
 test("keyword search filters loaded orders without requesting the API again", async () => {
   await renderOrders();
 
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+  submitSearch();
   await screen.findByText(mockOrders[0].orderNo);
   assert.equal(loadOrdersPageData.mock.calls.length, 1);
 
@@ -85,13 +104,7 @@ test("marks a MOMO shipping store-pickup order with its convenience-store brand"
   }]);
   await renderOrders();
 
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  const [startDate, endDate] = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="date"]'));
-  assert.ok(startDate);
-  assert.ok(endDate);
-  fireEvent.change(startDate, { target: { value: "2026-08-01" } });
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+  submitSearch();
 
   assert.ok(await screen.findByText("超商：7-ELEVEN"));
 });
@@ -100,9 +113,7 @@ test("出貨中訂單在正規化狀態之外顯示平台細狀態", async () =>
   loadOrdersPageData.mockResolvedValue([{ ...mockOrders[2], status: "配送中", statusDetail: "已印單" }]);
   await renderOrders();
 
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+  submitSearch();
 
   assert.ok(await screen.findByText("已印單"));
   assert.ok(screen.getByText("配送中"));
@@ -111,9 +122,8 @@ test("出貨中訂單在正規化狀態之外顯示平台細狀態", async () =>
 test("shows an error after a failed search", async () => {
   loadOrdersPageData.mockRejectedValue(new Error("load failure"));
   await renderOrders();
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+
+  submitSearch();
 
   assert.ok(await screen.findByText("load failure"));
 });
@@ -137,14 +147,12 @@ test("搜尋列預設近七天，且結束日期最多為開始日起 30 天", a
 test("date searches reload orders with the selected range", async () => {
   await renderOrders();
   const [startDate, endDate] = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="date"]'));
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
   assert.ok(startDate);
   assert.ok(endDate);
-  assert.ok(searchButton);
 
   fireEvent.change(startDate, { target: { value: "2026-08-02" } });
   fireEvent.change(endDate, { target: { value: "2026-08-03" } });
-  fireEvent.click(searchButton);
+  submitSearch();
 
   await waitFor(() => {
     assert.deepEqual(loadOrdersPageData.mock.calls.at(-1)?.[0], {
@@ -155,123 +163,68 @@ test("date searches reload orders with the selected range", async () => {
   assert.equal(loadOrdersPageData.mock.calls.length, 1);
 });
 
-test("狀態改為平台對應的下拉選單，並把 Mo 店+ 原生值傳入查詢", async () => {
+// 各平台的下拉選單送出的是該平台的原生值：mo店+ 的超取分類是取件流向
+//（StoreToStoreShip…），momo 的則是超商品牌代碼（dely_gb）。
+test.each([
+  {
+    name: "Mo 店+ 的訂單狀態送出平台原生值",
+    tab: /Mo 店\+/,
+    channel: "MO_STORE_PLUS",
+    selections: [["訂單狀態", "配送中"]],
+    expected: { status: "Shipping" },
+  },
+  {
+    name: "Mo 店+ 的配送類型與超取分類送出取件流向",
+    tab: /Mo 店\+/,
+    channel: "MO_STORE_PLUS",
+    selections: [["配送類型", "超取"], ["超取分類", "店到店配送"]],
+    expected: { deliveryType: "Store", storeDeliveryType: "StoreToStoreShip" },
+  },
+  {
+    name: "MOMO 購物網的訂單狀態可選擇出貨中",
+    tab: /MOMO 購物網/,
+    channel: "MOMO_MAIN",
+    selections: [["訂單狀態", "出貨中"]],
+    expected: { status: "SHIPPING" },
+  },
+  {
+    name: "MOMO 購物網的配送類型與超商別送出超商代碼",
+    tab: /MOMO 購物網/,
+    channel: "MOMO_MAIN",
+    selections: [["配送類型", "超商取貨"], ["超取分類", "全家 店到店"]],
+    expected: { deliveryType: "Store", storeDeliveryType: "29" },
+  },
+])("$name", async ({ tab, channel, selections, expected }) => {
   await renderOrders();
 
-  fireEvent.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
-  fireEvent.mouseDown(screen.getByLabelText("訂單狀態"));
-  fireEvent.click(await screen.findByRole("option", { name: "配送中" }));
-
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+  fireEvent.click(screen.getByRole("tab", { name: tab }));
+  await selectOptions(selections);
+  submitSearch();
 
   await waitFor(() => {
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MO_STORE_PLUS");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.status, "Shipping");
+    assert.equal(lastQuery().channel, channel);
+    for (const [key, value] of Object.entries(expected)) {
+      assert.equal(lastQuery().filters?.[key as keyof typeof expected], value, key);
+    }
   });
 });
 
-test("Mo 店+ 切換配送類型與超取分類，並將選取值傳入 loadOrdersPageData", async () => {
+test.each([
+  { delivery: "宅配", deliveryType: "Home" },
+  { delivery: "第三方物流", deliveryType: "ThirdParty" },
+])("Mo 店+ 配送類型選取$delivery時，超取分類下拉選單會隱藏並帶入全部", async ({ delivery, deliveryType }) => {
   await renderOrders();
 
   fireEvent.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
-
-  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
-  fireEvent.click(await screen.findByRole("option", { name: "超取" }));
-
-  fireEvent.mouseDown(screen.getByLabelText("超取分類"));
-  fireEvent.click(await screen.findByRole("option", { name: "7-ELEVEN" }));
-
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
-
-  await waitFor(() => {
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MO_STORE_PLUS");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.deliveryType, "Store");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.storeDeliveryType, "1");
-  });
-});
-
-test("Mo 店+ 配送類型選取宅配時，超取分類下拉選單會隱藏並帶入全部", async () => {
-  await renderOrders();
-
-  fireEvent.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
-
-  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
-  fireEvent.click(await screen.findByRole("option", { name: "宅配" }));
+  await selectOptions([["配送類型", delivery]]);
 
   assert.equal(screen.queryByLabelText("超取分類"), null);
-
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+  submitSearch();
 
   await waitFor(() => {
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MO_STORE_PLUS");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.deliveryType, "Home");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.storeDeliveryType, "All");
-  });
-});
-
-test("Mo 店+ 配送類型可選取第三方物流並傳入 ThirdParty", async () => {
-  await renderOrders();
-
-  fireEvent.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
-
-  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
-  fireEvent.click(await screen.findByRole("option", { name: "第三方物流" }));
-
-  assert.equal(screen.queryByLabelText("超取分類"), null);
-
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
-
-  await waitFor(() => {
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MO_STORE_PLUS");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.deliveryType, "ThirdParty");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.storeDeliveryType, "All");
-  });
-});
-
-test("MOMO 購物網狀態下拉選單可選擇出貨中", async () => {
-  await renderOrders();
-
-  fireEvent.click(screen.getByRole("tab", { name: /MOMO 購物網/ }));
-  fireEvent.mouseDown(screen.getByLabelText("訂單狀態"));
-  fireEvent.click(await screen.findByRole("option", { name: "出貨中" }));
-
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
-
-  await waitFor(() => {
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MOMO_MAIN");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.status, "SHIPPING");
-  });
-});
-
-test("MOMO 購物網可選取配送類型與超商別，並將選取值傳入 loadOrdersPageData", async () => {
-  await renderOrders();
-
-  fireEvent.click(screen.getByRole("tab", { name: /MOMO 購物網/ }));
-
-  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
-  fireEvent.click(await screen.findByRole("option", { name: "超商取貨" }));
-
-  fireEvent.mouseDown(screen.getByLabelText("超取分類"));
-  fireEvent.click(await screen.findByRole("option", { name: "全家 店到店" }));
-
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
-
-  await waitFor(() => {
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[1], "MOMO_MAIN");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.deliveryType, "Store");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.storeDeliveryType, "29");
+    assert.equal(lastQuery().channel, "MO_STORE_PLUS");
+    assert.equal(lastQuery().filters?.deliveryType, deliveryType);
+    assert.equal(lastQuery().filters?.storeDeliveryType, "All");
   });
 });
 
@@ -282,24 +235,16 @@ test("MOMO 購物網選取出貨中與配送類型後，才會出現出貨中狀
   assert.equal(screen.queryByLabelText("出貨中狀態"), null);
 
   // 只選出貨中還不夠：配送類型仍是「全部」，兩種配送方式的細狀態代碼並不共用。
-  fireEvent.mouseDown(screen.getByLabelText("訂單狀態"));
-  fireEvent.click(await screen.findByRole("option", { name: "出貨中" }));
+  await selectOptions([["訂單狀態", "出貨中"]]);
   assert.equal(screen.queryByLabelText("出貨中狀態"), null);
 
-  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
-  fireEvent.click(await screen.findByRole("option", { name: "第三方物流" }));
-
-  fireEvent.mouseDown(await screen.findByLabelText("出貨中狀態"));
-  fireEvent.click(await screen.findByRole("option", { name: "配送中" }));
-
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+  await selectOptions([["配送類型", "第三方物流"], ["出貨中狀態", "配送中"]]);
+  submitSearch();
 
   await waitFor(() => {
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.status, "SHIPPING");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.deliveryType, "ThirdParty");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.shippingStatus, "2");
+    assert.equal(lastQuery().filters?.status, "SHIPPING");
+    assert.equal(lastQuery().filters?.deliveryType, "ThirdParty");
+    assert.equal(lastQuery().filters?.shippingStatus, "2");
   });
 });
 
@@ -307,43 +252,26 @@ test("MOMO 購物網改回未出貨後，出貨中狀態下拉選單會隱藏並
   await renderOrders();
 
   fireEvent.click(screen.getByRole("tab", { name: /MOMO 購物網/ }));
-
-  fireEvent.mouseDown(screen.getByLabelText("配送類型"));
-  fireEvent.click(await screen.findByRole("option", { name: "超商取貨" }));
-
-  fireEvent.mouseDown(screen.getByLabelText("訂單狀態"));
-  fireEvent.click(await screen.findByRole("option", { name: "出貨中" }));
-
-  fireEvent.mouseDown(await screen.findByLabelText("出貨中狀態"));
-  fireEvent.click(await screen.findByRole("option", { name: "待客戶取件" }));
-
-  fireEvent.mouseDown(screen.getByLabelText("訂單狀態"));
-  fireEvent.click(await screen.findByRole("option", { name: "未出貨" }));
+  await selectOptions([
+    ["配送類型", "超商取貨"],
+    ["訂單狀態", "出貨中"],
+    ["出貨中狀態", "待客戶取件"],
+    ["訂單狀態", "未出貨"],
+  ]);
 
   assert.equal(screen.queryByLabelText("出貨中狀態"), null);
-
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+  submitSearch();
 
   await waitFor(() => {
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.status, "UNSHIPPED");
-    assert.equal(loadOrdersPageData.mock.calls.at(-1)?.[2]?.shippingStatus, "All");
+    assert.equal(lastQuery().filters?.status, "UNSHIPPED");
+    assert.equal(lastQuery().filters?.shippingStatus, "All");
   });
 });
 
 test("點擊詳情按鈕可開啟訂單詳細內容彈窗", async () => {
   await renderOrders();
 
-  const [startDate, endDate] = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="date"]'));
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(startDate);
-  assert.ok(endDate);
-  assert.ok(searchButton);
-
-  fireEvent.change(startDate, { target: { value: "2026-08-01" } });
-  fireEvent.change(endDate, { target: { value: "2026-08-01" } });
-  fireEvent.click(searchButton);
+  submitSearch();
 
   let detailButtons: HTMLElement[] = [];
   await waitFor(() => {
@@ -361,9 +289,7 @@ test("沒有商品明細的訂單不會讓整張表格崩潰", async () => {
   loadOrdersPageData.mockResolvedValue([{ ...mockOrders[0], items: [] }]);
   await renderOrders();
 
-  const searchButton = document.querySelector<HTMLButtonElement>('button[type="submit"]');
-  assert.ok(searchButton);
-  fireEvent.click(searchButton);
+  submitSearch();
 
   assert.ok(await screen.findByText("無商品明細"));
   assert.ok(screen.getByText(mockOrders[0].orderNo));

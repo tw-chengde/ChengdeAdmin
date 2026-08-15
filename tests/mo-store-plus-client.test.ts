@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { createMoStorePlusConnector } from "@/app/lib/platforms/mo-store-plus";
 import { MoStorePlusClient } from "@/app/lib/platforms/mo-store-plus-client";
 import { mapMoStorePlusOrders } from "@/app/lib/platforms/mo-store-plus-order-mapper";
 import { mapMoStorePlusGoods } from "@/app/lib/platforms/mo-store-plus-product-mapper";
@@ -19,7 +20,24 @@ test("mo店+ sends the documented OrderQuery POST payload and extracts listOrder
       authorization = headers.get("Authorization");
       contentType = headers.get("Content-Type");
       body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      return new Response(JSON.stringify({ listOrder: [{ orderNo: "MO-1", customerName: "王小明", listItem: [{ goodsName: "商品", quantity: 1, orderAmount: 99 }] }] }));
+      return new Response(
+        JSON.stringify({
+          listOrder: [
+            {
+              orderNo: "MO-1",
+              listItem: [
+                {
+                  goodsName: "商品",
+                  quantity: 1,
+                  orderAmount: 99,
+                  customerName: "王小明",
+                  receiverAddress: "台北市信義區忠孝東路五段",
+                },
+              ],
+            },
+          ],
+        }),
+      );
     },
   });
 
@@ -31,7 +49,7 @@ test("mo店+ sends the documented OrderQuery POST payload and extracts listOrder
   assert.equal(contentType, "application/json");
   assert.deepEqual(body, {
     pageIndex: 1,
-    maxPerPage: 100,
+    maxPerPage: 1000,
     listOrderNo: [],
     queryDateType: "OrderDate",
     fromDate: "2026/08/01",
@@ -46,6 +64,8 @@ test("mo店+ sends the documented OrderQuery POST payload and extracts listOrder
     orderChangeAddrStatus: "All",
   });
   assert.equal(mapMoStorePlusOrders(orders)[0].orderNo, "MO-1");
+  assert.equal(mapMoStorePlusOrders(orders)[0].customerName, "王小明");
+  assert.equal(mapMoStorePlusOrders(orders)[0].address, "台北市信義區忠孝東路五段");
   assert.equal(mapMoStorePlusOrders(orders)[0].totalAmount, 99);
 });
 
@@ -58,11 +78,98 @@ test("mo店+ 將選取的訂單狀態與配送類型傳入 OrderQuery", async ()
     },
   });
 
-  await client.fetchOrders({ orderStatus: "Shipping", deliveryType: "Store", storeDeliveryType: "1" });
+  await client.fetchOrders({
+    orderStatus: "Shipping",
+    deliveryType: "Store",
+    storeDeliveryType: "StoreToStoreShip",
+  });
 
   assert.equal(body?.orderStatus, "Shipping");
   assert.equal(body?.deliveryType, "Store");
-  assert.equal(body?.storeDeliveryType, "1");
+  // 規格書的超取分類是取件流向（StoreToStoreShip…），不是 7-ELEVEN／全家等超商代碼。
+  assert.equal(body?.storeDeliveryType, "StoreToStoreShip");
+});
+
+test("mo店+ 訂單查詢逐頁抓到 totalOrders 為止", async () => {
+  const pages = [
+    { pageIndex: 1, maxPerPage: 2, totalOrders: 3, listOrder: [{ orderNo: "MO-1" }, { orderNo: "MO-2" }] },
+    { pageIndex: 2, maxPerPage: 2, totalOrders: 3, listOrder: [{ orderNo: "MO-3" }] },
+  ];
+  const requests: Array<Record<string, unknown>> = [];
+  const client = new MoStorePlusClient({
+    fetchImpl: async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return new Response(JSON.stringify(pages[requests.length - 1]));
+    },
+  });
+
+  const orders = await client.fetchOrders({ maxPerPage: 2 });
+
+  assert.deepEqual(
+    requests.map((request) => request.pageIndex),
+    [1, 2],
+  );
+  assert.deepEqual(
+    orders.map((order) => order.orderNo),
+    ["MO-1", "MO-2", "MO-3"],
+  );
+});
+
+// 平台謊報總數，且每頁都還回傳資料時，正常的迴圈條件永遠不會結束。
+test.each([
+  {
+    what: "訂單",
+    page: (calls: number) => ({ totalOrders: 999999, listOrder: [{ orderNo: `MO-${calls}` }] }),
+    fetch: (client: MoStorePlusClient) => client.fetchOrders({ maxPerPage: 1, maxPages: 3 }),
+  },
+  {
+    what: "商品",
+    page: (calls: number) => ({ totalGoods: 999999, result: [{ goodsCode: `G${calls}` }] }),
+    fetch: (client: MoStorePlusClient) => client.fetchGoods({ maxPerPage: 1, maxPages: 3 }),
+  },
+])("mo店+ $what 查詢遇到異常的總數時受 maxPages 上限保護", async ({ page, fetch }) => {
+  let calls = 0;
+  const client = new MoStorePlusClient({
+    fetchImpl: async () => {
+      calls += 1;
+      return new Response(JSON.stringify(page(calls)));
+    },
+  });
+
+  assert.equal((await fetch(client)).length, 3);
+  assert.equal(calls, 3);
+});
+
+test.each([
+  { what: "訂單", fetch: (client: MoStorePlusClient) => client.fetchOrders() },
+  { what: "商品", fetch: (client: MoStorePlusClient) => client.fetchGoods() },
+])("mo店+ $what 查詢把 errorMessage 轉成中文錯誤訊息", async ({ what, fetch }) => {
+  const client = new MoStorePlusClient({
+    fetchImpl: async () => new Response(JSON.stringify({ errorMessage: "token 已過期" })),
+  });
+  await assert.rejects(fetch(client), new RegExp(`mo店\\+ ${what}查詢失敗：token 已過期`));
+});
+
+test("mo店+ connector 在 STATISTICS 查詢時帶入 OrderDate 與 All", async () => {
+  let body: Record<string, unknown> | undefined;
+  const connector = createMoStorePlusConnector({
+    createClient: () =>
+      new MoStorePlusClient({
+        fetchImpl: async (_input, init) => {
+          body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return new Response(JSON.stringify({ listOrder: [] }));
+        },
+      }),
+  });
+
+  await connector.fetchOrders({
+    from: new Date("2026-08-01"),
+    to: new Date("2026-08-14"),
+    status: "STATISTICS",
+  });
+
+  assert.equal(body?.queryDateType, "OrderDate");
+  assert.equal(body?.orderStatus, "All");
 });
 
 test("mo店+ 商品查詢逐頁抓到 totalGoods 為止，並彙總單品的庫存與售價", async () => {
@@ -98,7 +205,7 @@ test("mo店+ 商品查詢逐頁抓到 totalGoods 為止，並彙總單品的庫�
     authValue: "Bearer token",
     fetchImpl: async (input, init) => {
       requests.push({ url: String(input), method: init?.method, body: JSON.parse(String(init?.body)) });
-      return new Response(JSON.stringify(pages[requests.length - 1]));
+      return new Response(JSON.stringify(pages[requests.length - 1] ?? { totalGoods: 0, result: [] }));
     },
   });
 
@@ -115,7 +222,8 @@ test("mo店+ 商品查詢逐頁抓到 totalGoods 為止，並彙總單品的庫�
   assert.equal(requests[0].body.saleStatus, "All");
   assert.equal(requests[0].body.pageIndex, 1);
   assert.equal(requests[0].body.maxPerPage, 2);
-  assert.match(String(requests[0].body.applyDate), /^\d{4}\/\d{2}\/\d{2}$/);
+  // 規格書指定 applyDate 為 `yyyy-MM-dd HH:mm:ss`，與訂單查詢的 `yyyy/MM/dd` 不同。
+  assert.match(String(requests[0].body.applyDate), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
   assert.equal(goods.length, 3);
 
   assert.deepEqual(mapMoStorePlusGoods(goods), [
@@ -150,35 +258,10 @@ test("mo店+ 商品查詢逐頁抓到 totalGoods 為止，並彙總單品的庫�
       skuCount: 0,
     },
   ]);
-});
 
-test("mo店+ 商品查詢把商品狀態帶進 saleStatus", async () => {
-  let body: Record<string, unknown> | undefined;
-  const client = new MoStorePlusClient({
-    fetchImpl: async (_input, init) => {
-      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      return new Response(JSON.stringify({ totalGoods: 0, result: [] }));
-    },
-  });
-
+  // 指定商品狀態時要照樣帶進 saleStatus。
   await client.fetchGoods({ saleStatus: "StopSelling" });
-
-  assert.equal(body?.saleStatus, "StopSelling");
-});
-
-test("mo店+ 商品查詢遇到異常的 totalGoods 時受 maxPages 上限保護", async () => {
-  let calls = 0;
-  const client = new MoStorePlusClient({
-    fetchImpl: async () => {
-      calls += 1;
-      // 平台謊報總數，且每頁都還回傳資料，正常迴圈條件永遠不會結束。
-      return new Response(JSON.stringify({ totalGoods: 999999, result: [{ goodsCode: `G${calls}` }] }));
-    },
-  });
-
-  const goods = await client.fetchGoods({ maxPerPage: 1, maxPages: 3 });
-  assert.equal(calls, 3);
-  assert.equal(goods.length, 3);
+  assert.equal(requests.at(-1)?.body.saleStatus, "StopSelling");
 });
 
 test("mo店+ 設定 proxy 後，訂單與商品查詢都改送 proxy 並帶上目標主機標頭", async () => {
@@ -195,7 +278,7 @@ test("mo店+ 設定 proxy 後，訂單與商品查詢都改送 proxy 並帶上�
         target: headers.get("x-target-url"),
         auth: headers.get("Authorization"),
       });
-      return new Response(JSON.stringify({ data: [], totalGoods: 0, result: [] }));
+      return new Response(JSON.stringify({ totalOrders: 0, listOrder: [], totalGoods: 0, result: [] }));
     },
   });
 
@@ -218,17 +301,5 @@ test("mo店+ 設定 proxy 後，訂單與商品查詢都改送 proxy 並帶上�
   }
 });
 
-test("mo店+ 只設定 MOMO_PROXY_URL 而未給 token 時直接擋下", async () => {
-  const client = new MoStorePlusClient({
-    proxyUrl: "https://proxy.example.run.app",
-    fetchImpl: async () => new Response("{}"),
-  });
-  await assert.rejects(client.fetchGoods(), /設定 MOMO_PROXY_URL 時也必須設定 MOMO_PROXY_TOKEN/);
-});
-
-test("mo店+ 商品查詢把 errorMessage 轉成中文錯誤訊息", async () => {
-  const client = new MoStorePlusClient({
-    fetchImpl: async () => new Response(JSON.stringify({ errorMessage: "token 已過期" })),
-  });
-  await assert.rejects(client.fetchGoods(), /mo店\+ 商品查詢失敗：token 已過期/);
-});
+// 「設了 proxyUrl 卻沒給 token 就擋下」是共用的 resolvePlatformRequest 行為，
+// 已由 platform-transport.test.ts 直接驗證，各 client 不再各測一次。

@@ -3,17 +3,13 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import LoadingBackdrop from "@/app/dashboard/loading-backdrop";
 
-test("LoadingBackdrop 在 open=true 時顯示指定訊息與誠得商標", () => {
-  render(<LoadingBackdrop open={true} message="測試讀取中..." />);
+test.each([
+  { given: "指定訊息", props: { message: "測試讀取中..." }, text: "測試讀取中..." },
+  { given: "未傳 message", props: {}, text: "資料處理中，請稍候..." },
+])("LoadingBackdrop 在 open=true 且$given時顯示對應提示與誠得商標", ({ props, text }) => {
+  render(<LoadingBackdrop open={true} {...props} />);
 
-  assert.ok(screen.getByText("測試讀取中..."));
-  assert.ok(screen.getByAltText("誠得商標"));
-});
-
-test("LoadingBackdrop 在 open=true 且未傳 message 時顯示預設提示", () => {
-  render(<LoadingBackdrop open={true} />);
-
-  assert.ok(screen.getByText("資料處理中，請稍候..."));
+  assert.ok(screen.getByText(text));
   assert.ok(screen.getByAltText("誠得商標"));
 });
 

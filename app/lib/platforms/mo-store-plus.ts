@@ -35,7 +35,7 @@ export function createMoStorePlusConnector(options: MoStorePlusConnectorOptions 
       return mapMoStorePlusOrders(
         await createClient().fetchOrders({
           ...query,
-          orderStatus: query.status === "ALL" ? "All" : query.status,
+          orderStatus: query.status === "ALL" || query.status === "STATISTICS" ? "All" : query.status,
           deliveryType: query.deliveryType ?? "All",
           storeDeliveryType: query.storeDeliveryType ?? "All",
         }),

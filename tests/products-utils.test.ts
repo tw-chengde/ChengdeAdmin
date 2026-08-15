@@ -65,36 +65,15 @@ test("validateProductInput 擋下空白的商品代號與名稱", () => {
   });
 });
 
-test("validateProductInput 擋下負數、小數與非數字的庫存", () => {
-  const expected = { ok: false, error: "庫存必須為 0 或正整數" };
-  assert.deepEqual(validateProductInput(input({ stock: -1 })), expected);
-  assert.deepEqual(validateProductInput(input({ stock: 1.5 })), expected);
-  assert.deepEqual(validateProductInput(input({ stock: "abc" as unknown as number })), expected);
-  assert.deepEqual(validateProductInput(input({ stock: NaN })), expected);
-});
-
-test("validateProductInput 擋下負數、小數與非數字的超商併單上限", () => {
-  const expected = { ok: false, error: "超商併單上限必須為 0 或正整數" };
-  assert.deepEqual(validateProductInput(input({ cvsMergeLimit: -1 })), expected);
-  assert.deepEqual(validateProductInput(input({ cvsMergeLimit: 2.5 })), expected);
-  assert.deepEqual(
-    validateProductInput(input({ cvsMergeLimit: "abc" as unknown as number })),
-    expected,
-  );
-  assert.deepEqual(
-    validateProductInput(input({ cvsMergeLimit: undefined as unknown as number })),
-    expected,
-  );
-});
-
-test("validateProductInput 擋下負數、小數與非數字的物流併單上限", () => {
-  const expected = { ok: false, error: "物流併單上限必須為 0 或正整數" };
-  assert.deepEqual(validateProductInput(input({ logisticsMergeLimit: -1 })), expected);
-  assert.deepEqual(validateProductInput(input({ logisticsMergeLimit: 2.5 })), expected);
-  assert.deepEqual(
-    validateProductInput(input({ logisticsMergeLimit: "abc" as unknown as number })),
-    expected,
-  );
+test.each([
+  { field: "stock", label: "庫存" },
+  { field: "cvsMergeLimit", label: "超商併單上限" },
+  { field: "logisticsMergeLimit", label: "物流併單上限" },
+] as const)("validateProductInput 擋下負數、小數與非數字的$label", ({ field, label }) => {
+  const expected = { ok: false, error: `${label}必須為 0 或正整數` };
+  for (const value of [-1, 1.5, "abc", NaN, undefined]) {
+    assert.deepEqual(validateProductInput(input({ [field]: value as unknown as number })), expected, String(value));
+  }
 });
 
 test("isValidProductId 只接受正整數", () => {

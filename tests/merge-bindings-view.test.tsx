@@ -140,16 +140,8 @@ test("進入畫面不自動查詢，顯示提示且沒有重新整理按鈕", as
   assert.equal(screen.queryByRole("button", { name: "重新整理" }), null);
 });
 
-test("商品狀態預設為上架中，按下查詢時只查目前分頁的平台", async () => {
-  await renderView();
-
-  assert.equal(loadMergeBindingPageData.mock.calls.length, 1);
-  assert.deepEqual(loadMergeBindingPageData.mock.calls[0][0], {
-    platformCode: "MOMO_MAIN",
-    listingStatus: "LISTED",
-  });
-});
-
+// 「預設條件為 MOMO_MAIN + LISTED」與「切換平台時保留各平台已查到的結果」
+// 由 useMergeBindings.test.ts 在 hook 層驗證，這裡只留 DOM 才看得出來的行為。
 test("切換商品狀態後查詢會送出對應的條件", async () => {
   const user = mountView();
 
@@ -249,29 +241,6 @@ test("切換到沒查過的平台分頁不自動查詢，查詢時只送出新�
     platformCode: "MO_STORE_PLUS",
     listingStatus: "LISTED",
   });
-});
-
-test("切回查過的平台分頁直接沿用上次結果，不重新查詢", async () => {
-  const user = await renderView();
-
-  loadMergeBindingPageData.mockResolvedValue(pageData({ platformProducts: [chair], bindings: [] }));
-  await user.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
-  await user.click(screen.getByRole("button", { name: "查詢" }));
-  await screen.findByText(chair.name);
-
-  await user.click(screen.getByRole("tab", { name: /MOMO 購物網/ }));
-
-  // momo 的商品與綁定狀態都回到切走前的樣子，且沒有再打一次 API。
-  assert.ok(await screen.findByText(bottle.name));
-  assert.ok(screen.getByText(lamp.name));
-  assert.equal(screen.queryByText(chair.name), null);
-  assert.ok(within(screen.getByText(bottle.name).closest("tr")!).getByText(`${localBottle.code} · ${localBottle.name}`));
-  assert.equal(loadMergeBindingPageData.mock.calls.length, 2);
-
-  // 切回已查過的 Mo 店+ 同樣直接顯示快取。
-  await user.click(screen.getByRole("tab", { name: /Mo 店\+/ }));
-  assert.ok(await screen.findByText(chair.name));
-  assert.equal(loadMergeBindingPageData.mock.calls.length, 2);
 });
 
 test("改了商品狀態還沒按查詢時提示目前顯示的是舊條件的結果", async () => {

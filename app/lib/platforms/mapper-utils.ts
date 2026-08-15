@@ -14,21 +14,39 @@ export function optionalText(value: unknown): string | null {
 /** 取出可用的數字；null / undefined / 空字串 / 無法解析一律視為沒有值。 */
 export function optionalNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").trim();
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** 取出數量或金額；缺值與無法解析都當作 0，讓小計運算不會變成 NaN。 */
+/** 取出數量或金額；缺值與無法解析都當作 0，讓小計運算不會變成 NaN（自動移除千分位逗號）。 */
 export function toFiniteNumber(value: unknown): number {
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").trim();
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-/** 把平台回傳的日期字串正規化成 `YYYY-MM-DD`；認不出格式時原樣保留。 */
+/** 把平台回傳的日期字串正規化成 `YYYY-MM-DD`；支援 YYYY/MM/DD、YYYY-MM-DD 與 YYYYMMDD。 */
 export function normalizeOrderDate(value: string | undefined): string {
-  const match = value?.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-  if (!match) return value ?? "";
-  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+  if (!value) return "";
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  if (match) {
+    return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+  }
+  const matchCompact = trimmed.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (matchCompact) {
+    return `${matchCompact[1]}-${matchCompact[2]}-${matchCompact[3]}`;
+  }
+  return trimmed;
 }
 
 /**

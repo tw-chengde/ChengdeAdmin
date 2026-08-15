@@ -17,6 +17,10 @@ test("getConnector 找得到已註冊的平台，找不到未知代碼", () => {
   assert.equal(getConnector("MOMO_MAIN")?.definition.name, "MOMO 購物網");
   assert.equal(getConnector("MO_STORE_PLUS")?.definition.name, "Mo 店+");
   assert.equal(getConnector("UNKNOWN" as never), undefined);
+
+  // 兩個 connector 都要支援商品查詢，併單管理頁才列得出平台商品。
+  assert.equal(typeof getConnector("MOMO_MAIN")?.fetchProducts, "function");
+  assert.equal(typeof getConnector("MO_STORE_PLUS")?.fetchProducts, "function");
 });
 
 test("getEnabledConnectors 只回傳啟用中的平台，忽略未知代碼", () => {
@@ -29,14 +33,4 @@ test("getEnabledConnectors 只回傳啟用中的平台，忽略未知代碼", ()
     getEnabledConnectors(["MO_STORE_PLUS", "UNKNOWN" as never]).map((c) => c.definition.code),
     ["MO_STORE_PLUS"],
   );
-});
-
-test("每個 connector 只回傳自己通路的訂單", async () => {
-  assert.ok(getConnector("MOMO_MAIN"));
-  assert.ok(getConnector("MO_STORE_PLUS"));
-});
-
-test("兩個 connector 都支援商品查詢，併單管理頁才能列出平台商品", () => {
-  assert.equal(typeof getConnector("MOMO_MAIN")?.fetchProducts, "function");
-  assert.equal(typeof getConnector("MO_STORE_PLUS")?.fetchProducts, "function");
 });

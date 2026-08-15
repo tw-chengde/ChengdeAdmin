@@ -115,12 +115,16 @@ export const moStorePlusDefinition: PlatformDefinition = {
     { value: "Store", label: "超取" },
     { value: "ThirdParty", label: "第三方物流" },
   ],
+  /**
+   * 依 OrderQuery 的 storeDeliveryType 定義。這裡是「取件流向」而不是超商品牌——
+   * mo店+ 沒有依 7-ELEVEN／全家等品牌篩選的能力，那是 momo SCM 的 dely_gb 才有的。
+   */
   storeDeliveryTypeOptions: [
-    { value: "All", label: "全部超商" },
-    { value: "1", label: "7-ELEVEN" },
-    { value: "2", label: "全家便利商店" },
-    { value: "3", label: "萊爾富" },
-    { value: "4", label: "OK超商" },
+    { value: "All", label: "全部超取分類" },
+    { value: "StoreToStoreShip", label: "店到店配送" },
+    { value: "StoreToStoreReturn", label: "店到店退貨" },
+    { value: "WarehouseToStoreShip", label: "倉到店配送" },
+    { value: "StoreToWarehouseReturn", label: "店到倉退貨" },
   ],
   storeDeliveryTypeForDeliveryTypes: ["Store"],
 };

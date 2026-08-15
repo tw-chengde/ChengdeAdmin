@@ -117,6 +117,39 @@ export interface MomoGoodsBasicRecord {
   [key: string]: unknown;
 }
 
+export interface MomoOrderGoodsStatisticsQuery {
+  from: Date;
+  to: Date;
+  entpGoodsCode?: string;
+}
+
+/**
+ * orderGoodsStatisticsQuery 的一列＝一個單品在查詢區間內的接單彙總。
+ *
+ * 規格書上這支 API 只回傳以下七個欄位——特別注意它**沒有日期也沒有售價**：
+ * 金額只能用 buyPrice（進價含稅）估算，而且無法拆出每日走勢。
+ */
+export interface MomoOrderGoodsStatisticsRecord {
+  goodsCode?: string;
+  entpGoodsNo?: string;
+  goodsName?: string;
+  goodsDtInfo?: string;
+  /** 進價(含稅)。這支 API 不回傳售價。 */
+  buyPrice?: string | number;
+  /** 數量(訂購-取消) */
+  orderQty?: string | number;
+  /** 客退數量 */
+  claimQty?: string | number;
+  [key: string]: unknown;
+}
+
+/** 出貨確認類 API 的 resultInfo：未執行的筆數與清單。 */
+export interface MomoScmConfirmResult {
+  undoCnt?: string;
+  undoList?: string[];
+  [key: string]: unknown;
+}
+
 interface MomoScmResponse<TRow = unknown> {
   dataList?: TRow[];
   ERROR?: string;
@@ -256,6 +289,26 @@ export class MomoScmClient {
   }
 
   /**
+   * 訂單商品接單統計查詢 (orderGoodsStatisticsQuery)。
+   * 依日期區間統計接單數量與金額，主要用於營運總覽業績與商品銷售彙整。
+   */
+  async queryOrderGoodsStatistics(query: MomoOrderGoodsStatisticsQuery): Promise<MomoOrderGoodsStatisticsRecord[]> {
+    const from = taipeiDateTime(query.from);
+    const to = taipeiDateTime(query.to);
+    return this.queryDataList<MomoOrderGoodsStatisticsRecord>(
+      ORDER_SERVLET_PATH,
+      "orderGoodsStatisticsQuery",
+      "訂單商品接單統計查詢",
+      {
+        stDate: from.date,
+        edDate: to.date,
+        entpGoodsCode: query.entpGoodsCode ?? "",
+        goodsCode: "",
+      },
+    );
+  }
+
+  /**
    * 商品簡易查詢。四個條件皆為選填，全部留空即查詢全部商品；此 API 沒有分頁機制，
    * 一次回傳全部結果，且不含庫存欄位。
    */
@@ -291,12 +344,23 @@ export class MomoScmClient {
     return Array.isArray(response.dataList) ? response.dataList : [];
   }
 
-  async confirmCompanyShipment(sendInfoList: Array<Record<string, string>>): Promise<MomoScmResponse> {
-    return this.post<MomoScmResponse>(ORDER_SERVLET_PATH, {
+  /**
+   * 未出貨訂單-廠商配送-出貨確認 (unsendCompanyConfirm)。
+   *
+   * 每一筆 sendInfoList 的必填欄位為 completeOrderNo、remark5VStr、msgNote、delyGbStr、slipNo；
+   * 回應不是 dataList 而是 resultInfo.undoCnt / undoList（未執行的筆數與清單），
+   * 因此不走 queryDataList，但錯誤訊息的位置與查詢 API 相同，仍需自行檢查。
+   */
+  async confirmCompanyShipment(sendInfoList: Array<Record<string, string>>): Promise<MomoScmConfirmResult> {
+    const response = await this.post<MomoScmResponse & { resultInfo?: MomoScmConfirmResult }>(ORDER_SERVLET_PATH, {
       doAction: "unsendCompanyConfirm",
       loginInfo: this.loginInfo(),
       sendInfoList,
     });
+
+    const error = asErrorMessage(response);
+    if (error) throw new Error(`momo SCM 廠商配送出貨確認失敗：${error}`);
+    return response.resultInfo ?? {};
   }
 
   private loginInfo() {

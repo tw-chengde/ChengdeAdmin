@@ -78,36 +78,36 @@ test("resolveOrderDateRange 的上限與 getMaxEndDate 一致", () => {
   );
 });
 
-// 日期是送進平台 API 的查詢條件，前端不該再篩一次——否則各平台日期格式不一時會誤刪資料。
-test("filterOrders 不因訂單日期而過濾掉任何一筆", () => {
-  const outOfRange = filterOrders(mockOrders, { channelTab: "MOMO_MAIN", searchQuery: "" });
-  assert.equal(outOfRange.length, mockOrders.filter((order) => order.channelCode === "MOMO_MAIN").length);
+test("filterOrders 依通路篩選，且不因訂單日期而過濾掉任何一筆", () => {
+  const momoOnly = filterOrders(mockOrders, { channelTab: "MOMO_MAIN", searchQuery: "" });
+
+  assert.ok(momoOnly.length > 0);
+  assert.equal(momoOnly.length, mockOrders.filter((order) => order.channelCode === "MOMO_MAIN").length);
+  assert.ok(momoOnly.every((order) => order.channelCode === "MOMO_MAIN"));
+  // 日期是送進平台 API 的查詢條件，前端不該再篩一次——否則各平台日期格式不一時會誤刪資料。
   assert.ok(new Set(mockOrders.map((order) => order.createdAt.slice(0, 10))).size > 1, "mock 需涵蓋多個日期");
 });
 
-test("filterOrders 依通路與關鍵字篩選", () => {
-  const all = filterOrders(mockOrders, { channelTab: "MOMO_MAIN", searchQuery: "" });
-  assert.equal(all.length, mockOrders.filter((order) => order.channelCode === "MOMO_MAIN").length);
-
-  const momoOnly = filterOrders(mockOrders, { channelTab: "MOMO_MAIN", searchQuery: "" });
-  assert.ok(momoOnly.length > 0);
-  assert.ok(momoOnly.every((order) => order.channelCode === "MOMO_MAIN"));
-
+test("filterOrders 的關鍵字比對訂單編號、客戶姓名與商品名稱，忽略大小寫與前後空白", () => {
   const target = mockOrders[0];
-  assert.deepEqual(
-    filterOrders(mockOrders, { channelTab: "MOMO_MAIN", searchQuery: `  ${target.orderNo.toLowerCase()} ` }).map((o) => o.id),
-    [target.id],
-  );
+  const search = (searchQuery: string) =>
+    filterOrders(mockOrders, { channelTab: "MOMO_MAIN", searchQuery }).map((order) => order.id);
+
+  assert.deepEqual(search(`  ${target.orderNo.toLowerCase()} `), [target.id]);
+  assert.ok(search(target.customerName).includes(target.id));
+  assert.ok(search(target.items[0].name).includes(target.id));
+  assert.deepEqual(search("NO_SUCH_ORDER_XYZ"), []);
 });
 
 test("orderStats 只受通路影響", () => {
-  const selectedPlatformOrders = mockOrders.filter((order) => order.channelCode === "MOMO_MAIN");
-  const selected = orderStats(mockOrders, "MOMO_MAIN");
-  assert.equal(selected.totalOrders, selectedPlatformOrders.length);
-  assert.equal(selected.totalRevenue, selectedPlatformOrders.reduce((sum, order) => sum + order.totalAmount, 0));
-  assert.equal(selected.pendingShipment, selectedPlatformOrders.filter((order) => order.status === "待發貨").length);
-  const momo = orderStats(mockOrders, "MOMO_MAIN");
   const momoOrders = mockOrders.filter((order) => order.channelCode === "MOMO_MAIN");
-  assert.equal(momo.totalOrders, momoOrders.length);
-  assert.equal(momo.totalRevenue, momoOrders.reduce((sum, order) => sum + order.totalAmount, 0));
+  const stats = orderStats(mockOrders, "MOMO_MAIN");
+
+  assert.equal(stats.totalOrders, momoOrders.length);
+  assert.equal(stats.totalRevenue, momoOrders.reduce((sum, order) => sum + order.totalAmount, 0));
+  assert.equal(stats.pendingShipment, momoOrders.filter((order) => order.status === "待發貨").length);
+  assert.equal(
+    stats.rmaCount,
+    momoOrders.filter((order) => order.status === "退貨申請" || order.status === "已取消").length,
+  );
 });

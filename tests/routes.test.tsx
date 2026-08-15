@@ -4,6 +4,7 @@ import { test, vi } from "vitest";
 const getSession = vi.fn();
 const redirect = vi.fn((path: string) => { throw new Error(`redirect:${path}`); });
 const DashboardShell = vi.fn();
+const OverviewView = vi.fn();
 const OrdersView = vi.fn();
 const MergeBindingsView = vi.fn();
 const PlatformsView = vi.fn();
@@ -12,6 +13,7 @@ const ProductsView = vi.fn();
 vi.mock("@/auth", () => ({ getSession: () => getSession() }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => redirect(path) }));
 vi.mock("@/app/dashboard/dashboard-shell", () => ({ default: DashboardShell }));
+vi.mock("@/app/dashboard/overview-view", () => ({ default: OverviewView }));
 vi.mock("@/app/dashboard/orders-view", () => ({ default: OrdersView }));
 vi.mock("@/app/dashboard/merge-bindings-view", () => ({ default: MergeBindingsView }));
 vi.mock("@/app/dashboard/platforms-view", () => ({ default: PlatformsView }));
@@ -22,6 +24,7 @@ const { default: Home } = await import("@/app/page");
 const { default: DashboardLayout } = await import("@/app/dashboard/layout");
 const { default: DashboardPage } = await import("@/app/dashboard/page");
 const { default: PlatformAwareLayout } = await import("@/app/dashboard/(platform-aware)/layout");
+const { default: OverviewPage } = await import("@/app/dashboard/(platform-aware)/overview/page");
 const { default: OrdersPage } = await import("@/app/dashboard/(platform-aware)/orders/page");
 const { default: MergePage } = await import("@/app/dashboard/(platform-aware)/merge/page");
 const { default: SettingsPage } = await import("@/app/dashboard/(platform-aware)/settings/page");
@@ -53,8 +56,9 @@ test("DashboardLayout rejects guests and passes the session profile to its shell
   assert.equal(element.props.children, "content");
 });
 
-test("Dashboard routes mount their matching view and dashboard index redirects to orders", () => {
-  assert.throws(() => DashboardPage(), /redirect:\/dashboard\/orders/);
+test("Dashboard routes mount their matching view and dashboard index redirects to overview", () => {
+  assert.throws(() => DashboardPage(), /redirect:\/dashboard\/overview/);
+  assert.equal(OverviewPage().type, OverviewView);
   assert.equal(OrdersPage().type, OrdersView);
   assert.equal(MergePage().type, MergeBindingsView);
   assert.equal(SettingsPage().type, PlatformsView);

@@ -4,7 +4,11 @@ import {
   mapMoStorePlusOrders,
   toMoStorePlusOrderStatus,
 } from "@/app/lib/platforms/mo-store-plus-order-mapper";
-import { mapMomoShippingOrders, mapMomoUnshippedOrders } from "@/app/lib/platforms/momo-order-mapper";
+import {
+  mapMomoOrderGoodsStatistics,
+  mapMomoShippingOrders,
+  mapMomoUnshippedOrders,
+} from "@/app/lib/platforms/momo-order-mapper";
 import { orderStats, statusStyle } from "@/app/utils/orders";
 
 /**
@@ -63,6 +67,71 @@ test("momo 出貨中訂單沒有 code_name 時不編造文字", () => {
   assert.equal(missing.statusDetail, undefined);
 });
 
+test("momo 未出貨（超商取貨）訂單的收件人、超商與金額取自對應欄位", () => {
+  const [order] = mapMomoUnshippedOrders([
+    {
+      completeOrderNo: "STORE-001",
+      goodsName: "Store item",
+      goodsDtInfo: "Blue",
+      syslast: "2",
+      salePrice: "150",
+      Receiver: "Jane",
+      storeIdName: "Store A",
+      lastPricDate: "2026/08/01 10:00",
+    },
+  ]);
+
+  assert.equal(order.customerName, "Jane");
+  assert.equal(order.logistics, "Store A");
+  // 金額是「單價 × 件數」加總，不是直接拿 salePrice。
+  assert.equal(order.totalAmount, 300);
+  assert.equal(order.createdAt, "2026-08-01");
+});
+
+test("momo 未出貨（三方物流）訂單改用遮罩欄位與物流商名稱", () => {
+  const [order] = mapMomoUnshippedOrders([
+    {
+      completeOrderNo: "THIRD-001",
+      goodsName: "Third-party item",
+      syslast: "1",
+      salePrice: "880",
+      receiverMask: "Jo*n",
+      receiverAddrMask: "Taipei City",
+      orderDelyGbName: "Carrier A",
+      scm_msg: "Delivery note",
+    },
+  ]);
+
+  assert.equal(order.customerName, "Jo*n");
+  assert.equal(order.address, "Taipei City");
+  assert.equal(order.logistics, "Carrier A");
+  assert.equal(order.note, "Delivery note");
+});
+
+/** 回應本身不含超商別，靠 client 補上查詢時的 delyGb，mapper 才對應得到超商品牌。 */
+test("momo 出貨中（超商取貨）訂單以查詢時的超商別對應到超商品牌", () => {
+  const [order] = mapMomoShippingOrders([
+    {
+      completeOrderNo: "SHIPPING-STORE-001",
+      goods_name: "Shipping store item",
+      syslast: "1",
+      receiver_mask: "Ja*e",
+      storeName: "Store A",
+      storeId: "123456",
+      storeDeliveryType: "21",
+      slip_no: "SLIP-001",
+      create_date: "2026/08/01 10:00",
+      code_name: "已印單未到貨",
+    },
+  ]);
+
+  assert.deepEqual(order.pickupStore, { brand: "7-11", name: "Store A", id: "123456" });
+  assert.equal(order.customerName, "Ja*e");
+  assert.equal(order.logistics, "Store A");
+  assert.equal(order.trackingNo, "SLIP-001");
+  assert.equal(order.statusDetail, "已印單未到貨");
+});
+
 test("mo店+ 實際回傳的品項狀態對應到統一的訂單狀態", () => {
   assert.equal(toMoStorePlusOrderStatus("訂單接獲(未付款)"), "待付款");
   assert.equal(toMoStorePlusOrderStatus("出貨通知(已付款)"), "待發貨");
@@ -92,14 +161,16 @@ test("mo店+ 認不出的狀態落到其他，不猜測也不計入統計", () =
   assert.equal(toMoStorePlusOrderStatus(undefined), "其他");
   assert.equal(toMoStorePlusOrderStatus(123), "其他");
 
-  const orders = mapMoStorePlusOrders([{ orderNo: "MO-1", status: "SomeNewStatus" }]);
+  const orders = mapMoStorePlusOrders([
+    { orderNo: "MO-1", listItem: [{ itemStatus: "SomeNewStatus", goodsName: "保溫瓶" }] },
+  ]);
   assert.equal(orders[0].status, "其他");
   const stats = orderStats(orders, "MO_STORE_PLUS");
   assert.equal(stats.pendingShipment, 0);
   assert.equal(stats.rmaCount, 0);
 });
 
-test("mo店+ 沒有訂單層狀態時改用第一個品項的狀態", () => {
+test("mo店+ 訂單狀態取自品項層的 itemStatus", () => {
   const orders = mapMoStorePlusOrders([
     { orderNo: "MO-2", listItem: [{ itemStatus: "NotShipped", goodsName: "保溫瓶" }] },
   ]);
@@ -108,15 +179,143 @@ test("mo店+ 沒有訂單層狀態時改用第一個品項的狀態", () => {
 });
 
 /**
+ * 迴歸測試：OrderQuery 沒有訂單層狀態，過去只讀 listItem[0]，
+ * 於是「出貨一半」的訂單整張看起來都出完了，待處理出貨的數字會少算。
+ */
+test("mo店+ 多品項訂單取進度最落後的品項狀態", () => {
+  const [partiallyShipped] = mapMoStorePlusOrders([
+    {
+      orderNo: "MO-2C",
+      listItem: [{ itemStatus: "出貨確認" }, { itemStatus: "出貨通知(已付款)" }],
+    },
+  ]);
+  assert.equal(partiallyShipped.status, "待發貨");
+  assert.equal(orderStats([partiallyShipped], "MO_STORE_PLUS").pendingShipment, 1);
+
+  // 部分取消不該讓整張訂單被標成已取消。
+  const [partiallyCancelled] = mapMoStorePlusOrders([
+    { orderNo: "MO-2D", listItem: [{ itemStatus: "客戶取消" }, { itemStatus: "出貨通知(已付款)" }] },
+  ]);
+  assert.equal(partiallyCancelled.status, "待發貨");
+
+  // 全數取消才是已取消。
+  const [fullyCancelled] = mapMoStorePlusOrders([
+    { orderNo: "MO-2E", listItem: [{ itemStatus: "客戶取消" }, { itemStatus: "客戶取消" }] },
+  ]);
+  assert.equal(fullyCancelled.status, "已取消");
+});
+
+/**
+ * 迴歸測試：orderAmount 規格上是該品項的「訂單金額」小計，不是單價。
+ * 過去把它當單價再乘上 quantity，數量大於 1 的品項金額會被放大。
+ */
+test("mo店+ 的 orderAmount 是品項小計，不再被數量重複相乘", () => {
+  const [order] = mapMoStorePlusOrders([
+    {
+      orderNo: "MO-2F",
+      listItem: [
+        { goodsName: "保溫瓶", quantity: 3, orderAmount: 900 },
+        { goodsName: "檯燈", quantity: 1, orderAmount: 1500 },
+      ],
+    },
+  ]);
+
+  assert.equal(order.totalAmount, 2400);
+  assert.equal(order.items[0].qty, 3);
+  assert.equal(order.items[0].price, 300);
+  assert.equal(order.items[1].price, 1500);
+});
+
+test("mo店+ 從 listItem 品項層提取收件人姓名與地址", () => {
+  const [withCustomer] = mapMoStorePlusOrders([
+    {
+      orderNo: "MO-2A",
+      listItem: [
+        {
+          goodsName: "保溫瓶",
+          customerName: "王小明",
+          receiverAddress: "台北市信義區信義路五段7號",
+        },
+      ],
+    },
+  ]);
+  assert.equal(withCustomer.customerName, "王小明");
+  assert.equal(withCustomer.address, "台北市信義區信義路五段7號");
+
+  const [withReceiverFallback] = mapMoStorePlusOrders([
+    {
+      orderNo: "MO-2B",
+      listItem: [
+        {
+          goodsName: "保溫瓶",
+          receiverName: "李小華",
+          receiverAddress: "新北市板橋區縣民大道二段",
+        },
+      ],
+    },
+  ]);
+  assert.equal(withReceiverFallback.customerName, "李小華");
+  assert.equal(withReceiverFallback.address, "新北市板橋區縣民大道二段");
+});
+
+/**
  * 迴歸測試：mo店+ 過去直接把平台日期原樣塞進 createdAt，而 momo 會正規化成
  * YYYY-MM-DD。訂單日期在別處是以字串比較的，兩種格式混用會比出錯誤的結果。
  */
 test("mo店+ 的訂單日期正規化成 YYYY-MM-DD", () => {
-  assert.equal(mapMoStorePlusOrders([{ orderNo: "MO-3", createdAt: "2026/8/5 13:20" }])[0].createdAt, "2026-08-05");
-  assert.equal(mapMoStorePlusOrders([{ orderNo: "MO-4", createdAt: "2026-08-05" }])[0].createdAt, "2026-08-05");
   assert.equal(
-    mapMoStorePlusOrders([{ orderNo: "MO-5", listItem: [{ lastProcDate: "2026/12/31 08:00" }] }])[0].createdAt,
+    mapMoStorePlusOrders([{ orderNo: "MO-3", listItem: [{ lastProcDate: "2026/8/5 13:20" }] }])[0].createdAt,
+    "2026-08-05",
+  );
+  assert.equal(
+    mapMoStorePlusOrders([{ orderNo: "MO-4", listItem: [{ lastProcDate: "2026-08-05" }] }])[0].createdAt,
+    "2026-08-05",
+  );
+  assert.equal(
+    mapMoStorePlusOrders([{ orderNo: "MO-5", listItem: [{ planShipDate: "2026/12/31 08:00" }] }])[0].createdAt,
     "2026-12-31",
   );
   assert.equal(mapMoStorePlusOrders([{ orderNo: "MO-6" }])[0].createdAt, "");
+});
+
+// 平台有時把數量與進價回成含逗號的字串，兩種型別都要算出同一個金額。
+test.each([
+  { given: "數字", orderQty: 3, buyPrice: 1200 },
+  { given: "含逗號的字串", orderQty: "3", buyPrice: "1,200" },
+])("momo 訂單商品接單統計在進價為$given時都轉成 OrderItem 並算出金額", ({ orderQty, buyPrice }) => {
+  const orders = mapMomoOrderGoodsStatistics([
+    { goodsCode: "2000001", goodsName: "誠得保溫瓶 750ml", goodsDtInfo: "曜石黑", orderQty, buyPrice },
+  ]);
+
+  assert.equal(orders.length, 1);
+  assert.equal(orders[0].channelCode, "MOMO_MAIN");
+  assert.equal(orders[0].totalAmount, 3600);
+  assert.equal(orders[0].items[0].qty, 3);
+  assert.equal(orders[0].items[0].price, 1200);
+});
+
+/**
+ * 迴歸測試：orderGoodsStatisticsQuery 的回應沒有任何日期欄位，
+ * mapper 過去卻讀 lastPricDate / ordDate / create_date 這些規格書上不存在的欄位。
+ * 不編造日期，也不要讓空日期被當成落在區間內。
+ */
+test("momo 訂單商品接單統計沒有日期欄位時 createdAt 留空", () => {
+  const [order] = mapMomoOrderGoodsStatistics([
+    { goodsCode: "2000002", goodsName: "保溫瓶", orderQty: 1, buyPrice: 100 },
+  ]);
+
+  assert.equal(order.createdAt, "");
+});
+
+test("momo 訂單商品接單統計扣除 claimQty，全數客退則不產生訂單項目", () => {
+  const orders = mapMomoOrderGoodsStatistics([
+    { goodsCode: "5000001", goodsName: "全退商品", goodsDtInfo: "綠色", orderQty: 1, claimQty: 1, buyPrice: 880 },
+    { goodsCode: "4000001", goodsName: "部分客退商品", goodsDtInfo: "紅色", orderQty: 10, claimQty: 3, buyPrice: 500 },
+  ]);
+
+  // 全退的那一筆整筆消失，只留下部分客退的商品。
+  assert.equal(orders.length, 1);
+  assert.equal(orders[0].items[0].name, "部分客退商品");
+  assert.equal(orders[0].items[0].qty, 7); // 10 - 3 = 7
+  assert.equal(orders[0].totalAmount, 3500); // 7 * 500 = 3500
 });

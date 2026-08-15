@@ -4,16 +4,12 @@ import { test } from "vitest";
 import { useOrdersViewModel } from "@/app/hooks/useOrdersViewModel";
 import { mockOrders } from "./mocks/orders";
 
-test("預設顯示全部訂單", () => {
+// 關鍵字比對的細節（多欄位、大小寫、前後空白、查無資料）屬於 filterOrders 本身，
+// 由 orders-utils.test.ts 驗證；這裡只測 hook 自己的 state 轉換。
+test("預設帶入傳入的通路，切換後只留下該通路的訂單", () => {
   const { result } = renderHook(() => useOrdersViewModel(mockOrders, "MOMO_MAIN"));
-  assert.equal(result.current.filteredOrders.length, mockOrders.filter((order) => order.channelCode === "MOMO_MAIN").length);
+
   assert.equal(result.current.channelTab, "MOMO_MAIN");
-});
-
-test("切換通路只留下該通路的訂單", () => {
-  const { result } = renderHook(() => useOrdersViewModel(mockOrders, "MOMO_MAIN"));
-
-  act(() => result.current.setChannelTab("MOMO_MAIN"));
   assert.ok(result.current.filteredOrders.length > 0, "mock 資料需包含 MOMO_MAIN 訂單");
   assert.ok(result.current.filteredOrders.every((o) => o.channelCode === "MOMO_MAIN"));
 
@@ -37,55 +33,19 @@ test("通路與關鍵字的篩選條件會疊加", () => {
   );
 });
 
-test("搜尋可比對訂單編號、客戶姓名與商品名稱", () => {
-  const { result } = renderHook(() => useOrdersViewModel(mockOrders, "MOMO_MAIN"));
-  const target = mockOrders[0];
-
-  act(() => result.current.setSearchQuery(target.orderNo));
-  assert.deepEqual(
-    result.current.filteredOrders.map((o) => o.id),
-    [target.id],
-  );
-
-  act(() => result.current.setSearchQuery(target.customerName));
-  assert.ok(result.current.filteredOrders.some((o) => o.id === target.id));
-
-  act(() => result.current.setSearchQuery(target.items[0].name));
-  assert.ok(result.current.filteredOrders.some((o) => o.id === target.id));
-});
-
-test("搜尋不分大小寫且忽略前後空白", () => {
-  const { result } = renderHook(() => useOrdersViewModel(mockOrders, "MOMO_MAIN"));
-  const target = mockOrders[0];
-
-  act(() => result.current.setSearchQuery(`  ${target.orderNo.toLowerCase()}  `));
-  assert.ok(result.current.filteredOrders.some((o) => o.id === target.id));
-});
-
-test("查無資料時回傳空陣列", () => {
-  const { result } = renderHook(() => useOrdersViewModel(mockOrders, "MOMO_MAIN"));
-  act(() => result.current.setSearchQuery("NO_SUCH_ORDER_XYZ"));
-  assert.equal(result.current.filteredOrders.length, 0);
-});
-
-test("統計只受通路影響，不受搜尋影響", () => {
+// 統計數字本身由 orders-utils.test.ts 的 orderStats 驗證；這裡守的是
+// 「搜尋只影響清單、不影響統計」這件 hook 才決定得了的事。
+test("統計不受搜尋影響", () => {
   const { result } = renderHook(() => useOrdersViewModel(mockOrders, "MOMO_MAIN"));
 
   const platformOrders = mockOrders.filter((order) => order.channelCode === "MOMO_MAIN");
   const allRevenue = platformOrders.reduce((sum, o) => sum + o.totalAmount, 0);
   assert.equal(result.current.stats.totalOrders, platformOrders.length);
   assert.equal(result.current.stats.totalRevenue, allRevenue);
-  assert.equal(
-    result.current.stats.pendingShipment,
-    platformOrders.filter((o) => o.status === "待發貨").length,
-  );
-  assert.equal(
-    result.current.stats.rmaCount,
-    platformOrders.filter((o) => o.status === "退貨申請" || o.status === "已取消").length,
-  );
 
-  // 套用搜尋後，統計數字應維持不變。
   act(() => result.current.setSearchQuery("NO_SUCH_ORDER_XYZ"));
+
+  assert.equal(result.current.filteredOrders.length, 0);
   assert.equal(result.current.stats.totalOrders, platformOrders.length);
   assert.equal(result.current.stats.totalRevenue, allRevenue);
 });
