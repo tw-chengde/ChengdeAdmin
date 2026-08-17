@@ -39,13 +39,10 @@ test("統計不受搜尋影響", () => {
   const { result } = renderHook(() => useOrdersViewModel(mockOrders, "MOMO_MAIN"));
 
   const platformOrders = mockOrders.filter((order) => order.channelCode === "MOMO_MAIN");
-  const allRevenue = platformOrders.reduce((sum, o) => sum + o.totalAmount, 0);
   assert.equal(result.current.stats.totalOrders, platformOrders.length);
-  assert.equal(result.current.stats.totalRevenue, allRevenue);
 
   act(() => result.current.setSearchQuery("NO_SUCH_ORDER_XYZ"));
 
   assert.equal(result.current.filteredOrders.length, 0);
   assert.equal(result.current.stats.totalOrders, platformOrders.length);
-  assert.equal(result.current.stats.totalRevenue, allRevenue);
 });

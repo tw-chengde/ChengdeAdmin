@@ -210,22 +210,12 @@ export default function OrdersView() {
         </Tabs>
       </Paper>
 
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }, gap: 2.25, mb: 3 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" }, gap: 2.25, mb: 3 }}>
         <Paper elevation={0} sx={{ p: 2.5, border: "1px solid #eaecf0", borderRadius: 3 }}>
           <Typography color="text.secondary" sx={{ fontSize: 13, fontWeight: 600 }}>
             {`${selectedChannelName}筆數`}
           </Typography>
           <Typography sx={{ mt: 1, fontSize: 26, fontWeight: 850 }}>{stats.totalOrders} 筆</Typography>
-        </Paper>
-
-        <Paper elevation={0} sx={{ p: 2.5, border: "1px solid #eaecf0", borderRadius: 3 }}>
-          <Typography color="text.secondary" sx={{ fontSize: 13, fontWeight: 600 }}>
-            總銷售金額
-          </Typography>
-          <Typography sx={{ mt: 1, fontSize: 26, fontWeight: 850 }}>NT$ {stats.totalRevenue.toLocaleString()}</Typography>
-          <Typography color="text.secondary" sx={{ fontSize: 12, mt: 0.8 }}>
-            平均客單價 <span style={{ color: "#2563eb", fontWeight: 700 }}>NT$ {stats.totalOrders ? Math.round(stats.totalRevenue / stats.totalOrders).toLocaleString() : 0}</span>
-          </Typography>
         </Paper>
 
         <Paper elevation={0} sx={{ p: 2.5, border: "1px solid #eaecf0", borderRadius: 3, bgcolor: stats.pendingShipment > 0 ? "#fffcf5" : "white" }}>
@@ -242,7 +232,6 @@ export default function OrdersView() {
             )}
           </Stack>
         </Paper>
-
       </Box>
 
       <Paper elevation={0} sx={{ border: "1px solid #eaecf0", borderRadius: 3, overflow: "hidden" }}>
