@@ -103,8 +103,7 @@ test("orderStats 只受通路影響", () => {
   const momoOrders = mockOrders.filter((order) => order.channelCode === "MOMO_MAIN");
   const stats = orderStats(mockOrders, "MOMO_MAIN");
 
-  assert.equal(stats.totalOrders, momoOrders.length);
-  assert.equal(stats.totalRevenue, momoOrders.reduce((sum, order) => sum + order.totalAmount, 0));
+  assert.equal(stats.totalOrders, momoOrders.length);
   assert.equal(stats.pendingShipment, momoOrders.filter((order) => order.status === "待發貨").length);
   assert.equal(
     stats.rmaCount,

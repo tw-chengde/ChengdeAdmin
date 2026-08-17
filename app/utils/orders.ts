@@ -108,7 +108,6 @@ export function filterOrders(orders: OrderItem[], criteria: OrderFilterCriteria)
 
 export interface OrderStats {
   totalOrders: number;
-  totalRevenue: number;
   pendingShipment: number;
   rmaCount: number;
 }
@@ -119,7 +118,6 @@ export function orderStats(orders: OrderItem[], channelTab: ChannelTab): OrderSt
 
   return {
     totalOrders: scoped.length,
-    totalRevenue: scoped.reduce((sum, order) => sum + order.totalAmount, 0),
     pendingShipment: scoped.filter((order) => order.status === "待發貨").length,
     rmaCount: scoped.filter((order) => order.status === "退貨申請" || order.status === "已取消").length,
   };
