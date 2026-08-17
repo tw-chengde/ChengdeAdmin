@@ -18,7 +18,8 @@
     "db:migrations:list": "wrangler d1 migrations list chengde-admin-db --remote",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "prepare": "husky"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -47,6 +48,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.12",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "react-server-dom-webpack": "19.2.8",
     "typescript": "5.9.3",
