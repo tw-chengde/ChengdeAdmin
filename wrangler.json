@@ -9,6 +9,8 @@
 	"vars": {
 		"BETTER_AUTH_URL": "https://admin.tw-chengde.com",
 		"MOMO_PROXY_URL": "https://momo-proxy-780265451033.asia-east1.run.app",
+		"MOMO_SCM_THIRD_PARTY_DELIVERY_TYPES": "62",
+		"MOMO_SCM_THIRD_PARTY_TEMPERATURE_TYPES": "01"
 	},
 	"assets": {
 		"binding": "ASSETS",
