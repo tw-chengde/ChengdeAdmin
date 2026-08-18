@@ -1,6 +1,6 @@
 import { getAllPlatformDefinitions } from "@/app/lib/platforms/definitions";
 import type { PlatformCode } from "@/app/lib/platforms/types";
-import type { OrderItem } from "@/app/types/order";
+import { isPendingShipmentStatus, type OrderItem } from "@/app/types/order";
 
 export type ChannelTab = PlatformCode | null;
 
@@ -118,7 +118,7 @@ export function orderStats(orders: OrderItem[], channelTab: ChannelTab): OrderSt
 
   return {
     totalOrders: scoped.length,
-    pendingShipment: scoped.filter((order) => order.status === "待發貨").length,
+    pendingShipment: scoped.filter((order) => isPendingShipmentStatus(order.status)).length,
     rmaCount: scoped.filter((order) => order.status === "退貨申請" || order.status === "已取消").length,
   };
 }
@@ -127,6 +127,8 @@ export function statusStyle(status: OrderItem["status"]) {
   switch (status) {
     case "待發貨":
       return { color: "#b54708", bgcolor: "#fffaeb", border: "1px solid #fedf89" };
+    case "已印單":
+      return { color: "#6941c6", bgcolor: "#f9f5ff", border: "1px solid #d9d6fe" };
     case "配送中":
       return { color: "#175cd3", bgcolor: "#eff8ff", border: "1px solid #b2ddff" };
     case "已完成":

@@ -1,8 +1,24 @@
-import type { OrderItem } from "@/app/types/order";
+import type { OrderItem, OrderLineItem } from "@/app/types/order";
 import { MOMO_STORE_DELIVERY_TYPE_OPTIONS } from "./definitions";
-import { groupBy, normalizeOrderDate, toFiniteNumber } from "./mapper-utils";
+import { groupBy, normalizeOrderDate, optionalText, toFiniteNumber } from "./mapper-utils";
 import type { MomoOrderGoodsStatisticsRecord, MomoShippingOrder, MomoUnshippedOrder } from "./momo-scm-client";
 import type { PlatformSalesStatistics } from "./sales";
+
+/**
+ * momo 未出貨查詢的品項列轉成統一的訂單品項格式。未出貨訂單與出貨候選訂單
+ * （見 momo-shipment-mapper.ts）都是把同一份列轉成這個形狀，因此抽成共用函式。
+ */
+export function mapMomoOrderLineItems(rows: readonly MomoUnshippedOrder[]): OrderLineItem[] {
+  return rows.map((row) => ({
+    name: row.goodsName ?? "",
+    spec: row.goodsDtInfo ?? "",
+    qty: toFiniteNumber(row.syslast),
+    price: toFiniteNumber(row.salePrice),
+    goodsCode: optionalText(row.goodsCode) ?? undefined,
+    goodsdtCode: optionalText(row.goodsDtCode) ?? undefined,
+    entpGoodsNo: optionalText(row.entpGoodsNo) ?? undefined,
+  }));
+}
 
 /** 超商品牌名稱沿用「超取分類」下拉選單的標籤，兩邊才不會出現兩套超商名稱。 */
 const storeBrandByDeliveryType = new Map<string, string>(
@@ -27,12 +43,7 @@ export function mapMomoUnshippedOrders(rows: MomoUnshippedOrder[]): OrderItem[] 
   return [...grouped.values()].map((items) => {
     const first = items[0];
     const address = first.receiverAddrMask ?? "";
-    const orderItems = items.map((row) => ({
-      name: row.goodsName ?? "",
-      spec: row.goodsDtInfo ?? "",
-      qty: toFiniteNumber(row.syslast),
-      price: toFiniteNumber(row.salePrice),
-    }));
+    const orderItems = mapMomoOrderLineItems(items);
     return {
       id: `momo:${first.completeOrderNo}`,
       channel: "MOMO 購物網",
@@ -66,6 +77,9 @@ export function mapMomoShippingOrders(rows: MomoShippingOrder[]): OrderItem[] {
       qty: toFiniteNumber(row.syslast),
       // 出貨中查詢 API 沒有回傳售價，故不虛構金額。
       price: 0,
+      // 出貨中查詢其他欄位是 snake_case，但商品編號的鍵名規格書未載明；
+      // 兩種都試，實測後收斂成單一鍵名。
+      goodsCode: optionalText(row.goodsCode ?? row.goods_code) ?? undefined,
     }));
     return {
       id: `momo:${first.completeOrderNo}`,

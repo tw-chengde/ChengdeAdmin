@@ -1,4 +1,29 @@
+import type { ShipRouteId, ShipmentBlockReason, ShipmentStep } from "@/app/types/shipment";
+
 export type PlatformCode = "MOMO_MAIN" | "MO_STORE_PLUS";
+
+/**
+ * 一條可一鍵出貨的路徑（例如「momo 超商取貨」「店+ 7-11」）。
+ *
+ * 廠商配送（momo）與宅配（店+）不納入——這兩者完全不在 `shipRoutes` 裡出現，
+ * 而不是以 `automatable: false` 佔位；未納入的通路在畫面上一律不渲染。
+ */
+export interface ShipRouteDefinition {
+  id: ShipRouteId;
+  label: string;
+  /** 平台原生的配送類型值（例如 momo 的 Store／ThirdParty）。 */
+  deliveryType: string;
+  /** 平台原生的超取分類值；非超取路徑為 null。 */
+  storeDeliveryType: string | null;
+  /** false 時預覽只列出、不送出。目前全數路徑皆為 true。 */
+  automatable: boolean;
+  /** automatable=false 時直接顯示給使用者；目前沒有路徑用到。 */
+  manualReason?: string;
+  blockReason?: ShipmentBlockReason;
+  steps: readonly ShipmentStep[];
+  requiresPackaging: boolean;
+  producesDocument: boolean;
+}
 
 /** 訂單查詢頁下拉選單的選項結構（狀態、配送類型、超取分類等）。 */
 export interface OrderStatusOption {
@@ -37,6 +62,8 @@ export interface PlatformDefinition {
   shippingStatusOptionsByDeliveryType?: Readonly<Record<string, readonly ShippingStatusOption[]>>;
   /** 可選：會顯示出貨中細狀態的訂單狀態值。 */
   shippingStatusForOrderStatuses?: readonly string[];
+  /** 可選：該平台支援一鍵出貨的路徑。未定義或空陣列＝尚不支援一鍵出貨。 */
+  shipRoutes?: readonly ShipRouteDefinition[];
   logo: string;
   logoObjectFit: "contain" | "cover";
   color: string;

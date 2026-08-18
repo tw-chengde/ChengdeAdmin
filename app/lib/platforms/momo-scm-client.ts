@@ -9,6 +9,7 @@ import { resolvePlatformRequest, type PlatformProxyOptions } from "./platform-pr
 const MOMO_SCM_BASE_URL = "https://scmapi.momoshop.com.tw";
 const ORDER_SERVLET_PATH = "/OrderServlet.do";
 const GOODS_SERVLET_PATH = "/GoodsServlet.do";
+const SHIP_TYPE_LIST_PATH = "/order/shipType/getShipTypeList.scm";
 
 export type { MomoScmCredentials };
 
@@ -54,6 +55,10 @@ export interface MomoUnshippedOrder {
   goodsName?: string;
   goodsDtInfo?: string;
   goodsCode?: string;
+  goodsDtCode?: string;
+  entpGoodsNo?: string;
+  /** 個人識別碼；併箱分組鍵之一（P3-4a）。 */
+  custId?: string;
   syslast?: string | number;
   salePrice?: string | number;
   receiverMask?: string;
@@ -143,11 +148,48 @@ export interface MomoOrderGoodsStatisticsRecord {
   [key: string]: unknown;
 }
 
-/** 出貨確認類 API 的 resultInfo：未執行的筆數與清單。 */
-export interface MomoScmConfirmResult {
+/** 出貨用包材，平台語彙（`shipTypeStr` / `packTypeStr` / `packUnit`）。 */
+export interface MomoPackaging {
+  shipTypeStr: string;
+  packTypeStr: string;
+  packUnit: string;
+}
+
+/** unsendStoresCombineBox / unsendThirdCombineBox 的 resultInfo（單一物件）。 */
+export interface MomoCombineBoxResult {
   undoCnt?: string;
   undoList?: string[];
-  [key: string]: unknown;
+  combineOkCnt?: string;
+  combineFailCnt?: string;
+  combineFailList?: string[];
+  combineUsedCnt?: string;
+  combineUsedList?: string[];
+}
+
+/** 出貨確認的單筆結果；超商回傳陣列，第三方物流回傳單一物件。 */
+export interface MomoFinishResult {
+  undoCnt?: string;
+  undoList?: string[];
+  confirmOkCnt?: string;
+  confirmOkList?: string[];
+  confirmFailCnt?: string;
+  confirmFailList?: string[];
+  confirmRepeatCnt?: string;
+  confirmRepeatList?: string[];
+}
+
+export interface MomoPrintPdfResult {
+  undoCnt?: string;
+  undoList?: string[];
+  /** PDF 檔串流（base64）。 */
+  pdfData?: string;
+}
+
+export interface MomoShipTypeOption {
+  name: string;
+  /** 原始欄位拼字為 `neewWeight`，保留照抄，避免與規格書比對時混淆。 */
+  needsWeight: boolean;
+  packTypes: string[];
 }
 
 interface MomoScmResponse<TRow = unknown> {
@@ -321,6 +363,114 @@ export class MomoScmClient {
     });
   }
 
+  /** 超商取貨併箱（unsendStoresCombineBox）。boxYn 依 `planComboBoxes` 分組結果；規格書規定 remark5VStr 此處只能填「可出貨」。 */
+  combineStoreBoxes(boxYnByOrderNo: Map<string, string>): Promise<MomoCombineBoxResult> {
+    return this.postCombineBox("unsendStoresCombineBox", "超商取貨併箱", boxYnByOrderNo);
+  }
+
+  /** 第三方物流併箱（unsendThirdCombineBox）。欄位與超商取貨完全相同。 */
+  combineThirdPartyBoxes(boxYnByOrderNo: Map<string, string>): Promise<MomoCombineBoxResult> {
+    return this.postCombineBox("unsendThirdCombineBox", "第三方物流併箱", boxYnByOrderNo);
+  }
+
+  private async postCombineBox(doAction: string, actionName: string, boxYnByOrderNo: Map<string, string>): Promise<MomoCombineBoxResult> {
+    const response = await this.post<MomoScmResponse<unknown> & { resultInfo?: MomoCombineBoxResult }>(ORDER_SERVLET_PATH, {
+      doAction,
+      loginInfo: this.loginInfo(),
+      sendInfoList: [...boxYnByOrderNo.entries()].map(([completeOrderNo, boxYn]) => ({
+        completeOrderNo,
+        boxYn,
+        remark5VStr: "可出貨",
+      })),
+    });
+    const error = asErrorMessage(response);
+    if (error) throw new Error(`momo SCM ${actionName}失敗：${error}`);
+    return response.resultInfo ?? {};
+  }
+
+  /** 超商取貨出貨確認（unsendStoresFinish）。包材三欄必填。 */
+  finishStoreShipment(orderNos: string[], packaging: MomoPackaging): Promise<MomoFinishResult[]> {
+    return this.postFinish("unsendStoresFinish", "超商取貨出貨確認", orderNos, packaging);
+  }
+
+  /** 第三方物流出貨確認（unsendThirdFinish）。欄位與超商取貨完全相同。 */
+  finishThirdPartyShipment(orderNos: string[], packaging: MomoPackaging): Promise<MomoFinishResult[]> {
+    return this.postFinish("unsendThirdFinish", "第三方物流出貨確認", orderNos, packaging);
+  }
+
+  private async postFinish(
+    doAction: string,
+    actionName: string,
+    orderNos: string[],
+    packaging: MomoPackaging,
+  ): Promise<MomoFinishResult[]> {
+    const response = await this.post<MomoScmResponse<unknown> & { resultInfo?: MomoFinishResult | MomoFinishResult[] }>(ORDER_SERVLET_PATH, {
+      doAction,
+      loginInfo: this.loginInfo(),
+      sendInfoList: orderNos.map((completeOrderNo) => ({
+        completeOrderNo,
+        remark5VStr: "可出貨",
+        shipTypeStr: packaging.shipTypeStr,
+        packTypeStr: packaging.packTypeStr,
+        packUnit: packaging.packUnit,
+      })),
+    });
+    const error = asErrorMessage(response);
+    if (error) throw new Error(`momo SCM ${actionName}失敗：${error}`);
+    if (Array.isArray(response.resultInfo)) return response.resultInfo;
+    return response.resultInfo ? [response.resultInfo] : [];
+  }
+
+  /** 超商取貨列印標籤／明細（unsendStoresPrintPdf）。printType 在 body 最外層，不在 sendInfoList 裡。 */
+  async printStoreLabels(orderNos: string[], printType: "label" | "dt" = "label"): Promise<MomoPrintPdfResult> {
+    const response = await this.post<MomoScmResponse<unknown> & MomoPrintPdfResult>(ORDER_SERVLET_PATH, {
+      doAction: "unsendStoresPrintPdf",
+      printType,
+      loginInfo: this.loginInfo(),
+      sendInfoList: orderNos.map((completeOrderNo) => ({ completeOrderNo })),
+    });
+    const error = asErrorMessage(response);
+    if (error) throw new Error(`momo SCM 超商取貨列印失敗：${error}`);
+    return { undoCnt: response.undoCnt, undoList: response.undoList, pdfData: response.pdfData };
+  }
+
+  /**
+   * 第三方物流列印（unsendThirdPrintPdf）。
+   *
+   * 訂單編號與超商取貨版相同，放在 `sendInfoList`；另以 `third_delyGb` 指定物流商。
+   * 同一宅單號的訂單編號必須一併傳入，因此呼叫端會先依物流商分組。
+   */
+  async printThirdPartyLabels(
+    delyGb: MomoThirdPartyOrderQuery["delyGb"],
+    orderNos: string[],
+    printType: "label" | "dt" | "all" = "label",
+  ): Promise<MomoPrintPdfResult> {
+    const response = await this.post<MomoScmResponse<unknown> & MomoPrintPdfResult>(ORDER_SERVLET_PATH, {
+      doAction: "unsendThirdPrintPdf",
+      printType,
+      third_delyGb: delyGb,
+      loginInfo: this.loginInfo(),
+      sendInfoList: orderNos.map((completeOrderNo) => ({ completeOrderNo })),
+    });
+    const error = asErrorMessage(response);
+    if (error) throw new Error(`momo SCM 第三方物流列印失敗：${error}`);
+    return { undoCnt: response.undoCnt, undoList: response.undoList, pdfData: response.pdfData };
+  }
+
+  /** 取得配送類型／包材清單（`/order/shipType/getShipTypeList.scm`），驗證包材設定值用。此端點沒有 doAction。 */
+  async queryShipTypes(): Promise<MomoShipTypeOption[]> {
+    const response = await this.post<
+      MomoScmResponse<{ name?: string; neewWeight?: boolean; subLevelList?: Array<{ name?: string }> }>
+    >(SHIP_TYPE_LIST_PATH, { loginInfo: this.loginInfo() });
+    const error = asErrorMessage(response);
+    if (error) throw new Error(`momo SCM 配送類型清單查詢失敗：${error}`);
+    return (response.dataList ?? []).map((item) => ({
+      name: item.name ?? "",
+      needsWeight: item.neewWeight ?? false,
+      packTypes: (item.subLevelList ?? []).map((sub) => sub.name ?? ""),
+    }));
+  }
+
   /**
    * SCM 每個查詢 API 的形狀都一樣：POST 一組 doAction + loginInfo + sendInfo，
    * 回應把錯誤放在 ERROR / basicCheckMsgList，結果放在 dataList。
@@ -342,25 +492,6 @@ export class MomoScmClient {
     const error = asErrorMessage(response);
     if (error) throw new Error(`momo SCM ${queryName}失敗：${error}`);
     return Array.isArray(response.dataList) ? response.dataList : [];
-  }
-
-  /**
-   * 未出貨訂單-廠商配送-出貨確認 (unsendCompanyConfirm)。
-   *
-   * 每一筆 sendInfoList 的必填欄位為 completeOrderNo、remark5VStr、msgNote、delyGbStr、slipNo；
-   * 回應不是 dataList 而是 resultInfo.undoCnt / undoList（未執行的筆數與清單），
-   * 因此不走 queryDataList，但錯誤訊息的位置與查詢 API 相同，仍需自行檢查。
-   */
-  async confirmCompanyShipment(sendInfoList: Array<Record<string, string>>): Promise<MomoScmConfirmResult> {
-    const response = await this.post<MomoScmResponse & { resultInfo?: MomoScmConfirmResult }>(ORDER_SERVLET_PATH, {
-      doAction: "unsendCompanyConfirm",
-      loginInfo: this.loginInfo(),
-      sendInfoList,
-    });
-
-    const error = asErrorMessage(response);
-    if (error) throw new Error(`momo SCM 廠商配送出貨確認失敗：${error}`);
-    return response.resultInfo ?? {};
   }
 
   private loginInfo() {

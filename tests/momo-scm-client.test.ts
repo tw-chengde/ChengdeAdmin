@@ -521,3 +521,166 @@ test("momo SCM 訂單商品接單統計查詢發送正確的 orderGoodsStatistic
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.buyPrice, 1000);
 });
+
+const packaging = { shipTypeStr: "紙箱", packTypeStr: "標準", packUnit: "1" };
+
+test("momo SCM 超商取貨併箱送出 boxYn 與固定的 remark5VStr", async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MomoScmClient({
+    credentials,
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ resultInfo: { combineOkCnt: "2", combineFailCnt: "0" } }),
+      );
+    },
+  });
+
+  const result = await client.combineStoreBoxes(new Map([["A1", "1"], ["A2", "1"]]));
+
+  assert.equal(requestBody?.doAction, "unsendStoresCombineBox");
+  assert.deepEqual(requestBody?.sendInfoList, [
+    { completeOrderNo: "A1", boxYn: "1", remark5VStr: "可出貨" },
+    { completeOrderNo: "A2", boxYn: "1", remark5VStr: "可出貨" },
+  ]);
+  assert.equal(result.combineOkCnt, "2");
+});
+
+test("momo SCM 第三方物流併箱打 unsendThirdCombineBox", async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MomoScmClient({
+    credentials,
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ resultInfo: {} }));
+    },
+  });
+
+  await client.combineThirdPartyBoxes(new Map([["A1", "00"]]));
+
+  assert.equal(requestBody?.doAction, "unsendThirdCombineBox");
+});
+
+test("momo SCM 超商取貨出貨確認送出包材三欄，resultInfo 為陣列", async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MomoScmClient({
+    credentials,
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ resultInfo: [{ completeOrderNo: "A1", confirmOkCnt: "1" }] }));
+    },
+  });
+
+  const result = await client.finishStoreShipment(["A1"], packaging);
+
+  assert.equal(requestBody?.doAction, "unsendStoresFinish");
+  assert.deepEqual(requestBody?.sendInfoList, [
+    { completeOrderNo: "A1", remark5VStr: "可出貨", shipTypeStr: "紙箱", packTypeStr: "標準", packUnit: "1" },
+  ]);
+  assert.ok(Array.isArray(result));
+  assert.equal(result[0]?.confirmOkCnt, "1");
+});
+
+test("momo SCM 第三方物流出貨確認打 unsendThirdFinish，欄位與超商取貨相同", async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MomoScmClient({
+    credentials,
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ resultInfo: { confirmOkList: ["A1"] } }));
+    },
+  });
+
+  const result = await client.finishThirdPartyShipment(["A1"], packaging);
+
+  assert.equal(requestBody?.doAction, "unsendThirdFinish");
+  assert.deepEqual((requestBody?.sendInfoList as Array<Record<string, unknown>>)[0], {
+    completeOrderNo: "A1",
+    remark5VStr: "可出貨",
+    shipTypeStr: "紙箱",
+    packTypeStr: "標準",
+    packUnit: "1",
+  });
+  assert.deepEqual(result, [{ confirmOkList: ["A1"] }]);
+});
+
+test("momo SCM 超商取貨列印：printType 在 body 最外層，不在 sendInfoList 裡", async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MomoScmClient({
+    credentials,
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ pdfData: "JVBERi0xLjQ=" }));
+    },
+  });
+
+  const result = await client.printStoreLabels(["A1", "A2"], "dt");
+
+  assert.equal(requestBody?.doAction, "unsendStoresPrintPdf");
+  assert.equal(requestBody?.printType, "dt");
+  assert.deepEqual(requestBody?.sendInfoList, [{ completeOrderNo: "A1" }, { completeOrderNo: "A2" }]);
+  assert.equal(result.pdfData, "JVBERi0xLjQ=");
+
+  // 未指定時預設 label。
+  await client.printStoreLabels(["A1"]);
+  assert.equal(requestBody?.printType, "label");
+});
+
+test("momo SCM 第三方物流列印用 sendInfoList 並帶 third_delyGb", async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MomoScmClient({
+    credentials,
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ pdfData: "JVBERi0xLjQ=" }));
+    },
+  });
+
+  await client.printThirdPartyLabels("62", ["A1", "A2"], "all");
+
+  assert.equal(requestBody?.doAction, "unsendThirdPrintPdf");
+  assert.equal(requestBody?.printType, "all");
+  assert.equal(requestBody?.third_delyGb, "62");
+  assert.deepEqual(requestBody?.sendInfoList, [{ completeOrderNo: "A1" }, { completeOrderNo: "A2" }]);
+});
+
+test("momo SCM 併箱／出貨確認／列印遇到 ERROR 或 basicCheckMsgList 都拋出附動作名稱的錯誤", async () => {
+  const client = new MomoScmClient({
+    credentials,
+    fetchImpl: async () => new Response(JSON.stringify({ ERROR: "登入失敗" })),
+  });
+
+  await assert.rejects(client.combineStoreBoxes(new Map()), /momo SCM 超商取貨併箱失敗：登入失敗/);
+  await assert.rejects(client.finishThirdPartyShipment([], packaging), /momo SCM 第三方物流出貨確認失敗：登入失敗/);
+  await assert.rejects(client.printStoreLabels([]), /momo SCM 超商取貨列印失敗：登入失敗/);
+  await assert.rejects(client.queryShipTypes(), /momo SCM 配送類型清單查詢失敗：登入失敗/);
+});
+
+test("momo SCM 配送類型清單查詢打 /order/shipType/getShipTypeList.scm，沒有 doAction", async () => {
+  let requestUrl: string | undefined;
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MomoScmClient({
+    credentials,
+    fetchImpl: async (input, init) => {
+      requestUrl = String(input);
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          dataList: [{ name: "紙箱", neewWeight: true, subLevelList: [{ name: "標準" }, { name: "加大" }] }],
+        }),
+      );
+    },
+  });
+
+  const options = await client.queryShipTypes();
+
+  assert.equal(requestUrl, "https://scmapi.momoshop.com.tw/order/shipType/getShipTypeList.scm");
+  assert.equal(requestBody?.doAction, undefined);
+  assert.deepEqual(requestBody?.loginInfo, {
+    entpID: credentials.entpId,
+    entpCode: credentials.entpCode,
+    entpPwd: credentials.entpPassword,
+    otpBackNo: credentials.otpBackNo,
+  });
+  assert.deepEqual(options, [{ name: "紙箱", needsWeight: true, packTypes: ["標準", "加大"] }]);
+});

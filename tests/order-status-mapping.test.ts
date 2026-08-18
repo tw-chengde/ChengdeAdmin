@@ -132,29 +132,87 @@ test("momo 出貨中（超商取貨）訂單以查詢時的超商別對應到超
   assert.equal(order.statusDetail, "已印單未到貨");
 });
 
+test("momo 未出貨訂單帶出商品編號、單品編號與原廠編號，供揀貨單彙總使用", () => {
+  const [order] = mapMomoUnshippedOrders([
+    { completeOrderNo: "MOMO-7", goodsName: "保溫瓶", goodsCode: "G1", goodsDtCode: "D1", entpGoodsNo: "CD-1" },
+  ]);
+
+  assert.equal(order.items[0].goodsCode, "G1");
+  assert.equal(order.items[0].goodsdtCode, "D1");
+  assert.equal(order.items[0].entpGoodsNo, "CD-1");
+});
+
+test("momo 未出貨訂單缺編號時識別碼為 undefined，不編造空字串", () => {
+  const [order] = mapMomoUnshippedOrders([{ completeOrderNo: "MOMO-8", goodsName: "保溫瓶" }]);
+
+  assert.equal(order.items[0].goodsCode, undefined);
+  assert.equal(order.items[0].goodsdtCode, undefined);
+  assert.equal(order.items[0].entpGoodsNo, undefined);
+});
+
+// 出貨中查詢其他欄位是 snake_case，商品編號鍵名未經證實，兩種鍵名都要能取到值。
+test("momo 出貨中訂單的商品編號雙保險：goodsCode 與 goods_code 都能取到值", () => {
+  const [camelCase] = mapMomoShippingOrders([{ completeOrderNo: "MOMO-9", goodsCode: "G-camel" }]);
+  const [snakeCase] = mapMomoShippingOrders([{ completeOrderNo: "MOMO-10", goods_code: "G-snake" }]);
+
+  assert.equal(camelCase.items[0].goodsCode, "G-camel");
+  assert.equal(snakeCase.items[0].goodsCode, "G-snake");
+});
+
+test("mo店+ 訂單品項帶出商品編號（goodsNo）、單品編號與原廠編號", () => {
+  const [order] = mapMoStorePlusOrders([
+    {
+      orderNo: "MO-7",
+      listItem: [{ goodsName: "保溫瓶", goodsNo: "S1", goodsdtCode: "SD1", entpGoodsNo: "CD-2" }],
+    },
+  ]);
+
+  assert.equal(order.items[0].goodsCode, "S1");
+  assert.equal(order.items[0].goodsdtCode, "SD1");
+  assert.equal(order.items[0].entpGoodsNo, "CD-2");
+});
+
+test("mo-store-plus filters freight order items from the display list but keeps it in totalAmount", () => {
+  const [order] = mapMoStorePlusOrders([
+    {
+      orderNo: "MO-FREIGHT-1",
+      listItem: [
+        { goodsName: "保溫瓶", goodsNo: "G1", goodsdtCode: "001", quantity: 2, orderAmount: 600 },
+        { goodsName: "運費", goodsType: "運費", orderSeq: "002", quantity: 1, orderAmount: 60 },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(order.items.map((item) => item.name), ["保溫瓶"]);
+  assert.equal(order.totalAmount, 660);
+});
+
+test("mo店+ 訂單品項缺編號時識別碼為 undefined", () => {
+  const [order] = mapMoStorePlusOrders([{ orderNo: "MO-8", listItem: [{ goodsName: "保溫瓶" }] }]);
+
+  assert.equal(order.items[0].goodsCode, undefined);
+  assert.equal(order.items[0].goodsdtCode, undefined);
+  assert.equal(order.items[0].entpGoodsNo, undefined);
+});
+
 test("mo店+ 實際回傳的品項狀態對應到統一的訂單狀態", () => {
   assert.equal(toMoStorePlusOrderStatus("訂單接獲(未付款)"), "待付款");
   assert.equal(toMoStorePlusOrderStatus("出貨通知(已付款)"), "待發貨");
+  assert.equal(toMoStorePlusOrderStatus("已印單"), "已印單");
   assert.equal(toMoStorePlusOrderStatus("出貨確認"), "配送中");
   assert.equal(toMoStorePlusOrderStatus("配送結束"), "已完成");
   assert.equal(toMoStorePlusOrderStatus("回收確認"), "退貨申請");
   assert.equal(toMoStorePlusOrderStatus("客戶取消"), "已取消");
 });
 
-test("mo店+ 保留英文查詢條件值的相容 mapping", () => {
-  assert.equal(toMoStorePlusOrderStatus("Unpaid"), "待付款");
+// orderStatus 篩選值保留為相容 fallback，避免日後 API 回應格式改變時既有訂單全數落入「其他」。
+test("mo店+ orderStatus 篩選值也能對應到統一的訂單狀態（相容 fallback）", () => {
   assert.equal(toMoStorePlusOrderStatus("NotShipped"), "待發貨");
-  assert.equal(toMoStorePlusOrderStatus("Printed"), "待發貨");
-  assert.equal(toMoStorePlusOrderStatus("Shipping"), "配送中");
-  assert.equal(toMoStorePlusOrderStatus("AbnormalDelivery"), "配送中");
+  assert.equal(toMoStorePlusOrderStatus("Printed"), "已印單");
   assert.equal(toMoStorePlusOrderStatus("DoneDelivery"), "已完成");
-  assert.equal(toMoStorePlusOrderStatus("OrderCancelled"), "已取消");
-  assert.equal(toMoStorePlusOrderStatus("ReturnCancelled"), "已取消");
-  assert.equal(toMoStorePlusOrderStatus("NotRecycled"), "退貨申請");
-  assert.equal(toMoStorePlusOrderStatus("RecycleConfirmed"), "退貨申請");
 });
 
-// 猜錯狀態會直接讓「待處理出貨」的數字說謊，比顯示成未知狀態更難察覺。
+// 猜錯狀態會直接讓「待處理出貨」的數字說謊，比顯示成未知狀態更難察查。
 test("mo店+ 認不出的狀態落到其他，不猜測也不計入統計", () => {
   assert.equal(toMoStorePlusOrderStatus("SomeNewStatus"), "其他");
   assert.equal(toMoStorePlusOrderStatus(""), "其他");
@@ -172,7 +230,7 @@ test("mo店+ 認不出的狀態落到其他，不猜測也不計入統計", () =
 
 test("mo店+ 訂單狀態取自品項層的 itemStatus", () => {
   const orders = mapMoStorePlusOrders([
-    { orderNo: "MO-2", listItem: [{ itemStatus: "NotShipped", goodsName: "保溫瓶" }] },
+    { orderNo: "MO-2", listItem: [{ itemStatus: "出貨通知(已付款)", goodsName: "保溫瓶" }] },
   ]);
 
   assert.equal(orders[0].status, "待發貨");

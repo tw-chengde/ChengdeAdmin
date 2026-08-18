@@ -22,6 +22,7 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
       <CssBaseline />
       <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
         <DashboardSidebar
+          className="no-print"
           user={user}
           desktop={desktop}
           compactSidebar={compactSidebar}
@@ -32,6 +33,7 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
         <Box component="main" sx={{ flex: 1, minWidth: 0 }}>
           <Stack
             component="header"
+            className="no-print"
             direction="row"
             spacing={2}
             sx={{ height: 76, px: { xs: 2, sm: 3.5 }, bgcolor: "white", borderBottom: "1px solid #eee5e1", position: "sticky", top: 0, zIndex: 10, alignItems: "center" }}

@@ -45,7 +45,7 @@ test("DashboardSidebar marks the current navigation item and closes the mobile d
     />,
   );
 
-  const active = screen.getByRole("link", { name: navItems[3].label });
+  const active = screen.getByRole("link", { name: navItems[4].label });
   assert.equal(active.getAttribute("aria-current"), "page");
   assert.equal(screen.getByText("Ada").textContent, "Ada");
   assert.equal(screen.getByText("ada@example.test").textContent, "ada@example.test");

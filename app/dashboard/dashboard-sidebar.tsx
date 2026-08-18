@@ -32,6 +32,7 @@ export default function DashboardSidebar({
   mobileOpen,
   onCloseMobile,
   onToggleCollapsed,
+  className,
 }: {
   user: { name: string; email: string; image?: string };
   desktop: boolean;
@@ -39,6 +40,7 @@ export default function DashboardSidebar({
   mobileOpen: boolean;
   onCloseMobile: () => void;
   onToggleCollapsed: () => void;
+  className?: string;
 }) {
   const pathname = usePathname();
   const sidebarWidth = compactSidebar ? collapsedDrawerWidth : drawerWidth;
@@ -142,7 +144,12 @@ export default function DashboardSidebar({
   );
 
   return (
-    <Box component="nav" aria-label="主要導覽" sx={{ width: { md: sidebarWidth }, flexShrink: { md: 0 }, transition: "width .18s ease" }}>
+    <Box
+      component="nav"
+      aria-label="主要導覽"
+      className={className}
+      sx={{ width: { md: sidebarWidth }, flexShrink: { md: 0 }, transition: "width .18s ease" }}
+    >
       <Drawer
         variant={desktop ? "permanent" : "temporary"}
         open={desktop || mobileOpen}

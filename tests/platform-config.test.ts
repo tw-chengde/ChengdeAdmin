@@ -6,6 +6,7 @@ import {
   momoScmCredentialsFromEnvironment,
   optionalEnvironment,
   requiredEnvironment,
+  shipmentPackagingFromEnvironment,
 } from "@/app/lib/platforms/config";
 
 const allowed = ["61", "62", "63", "65"] as const;
@@ -76,4 +77,16 @@ test("momo SCM 四項憑證皆為必填，mo店+ 授權標頭為選填", () => {
 
   setEnvironment("MO_STORE_PLUS_AUTH_VALUE", undefined);
   assert.equal(moStorePlusAuthValueFromEnvironment(), undefined);
+});
+
+test("shipmentPackagingFromEnvironment 三欄缺一即回 null", () => {
+  for (const suffix of ["SHIP_PACK", "PACK_TYPE", "PACK_UNIT"]) setEnvironment(`TEST_SHIP_${suffix}`, undefined);
+  assert.equal(shipmentPackagingFromEnvironment("TEST_SHIP"), null);
+
+  setEnvironment("TEST_SHIP_SHIP_PACK", "紙箱");
+  setEnvironment("TEST_SHIP_PACK_TYPE", "標準");
+  assert.equal(shipmentPackagingFromEnvironment("TEST_SHIP"), null, "packUnit 仍缺，應回 null");
+
+  setEnvironment("TEST_SHIP_PACK_UNIT", "1");
+  assert.deepEqual(shipmentPackagingFromEnvironment("TEST_SHIP"), { shipPack: "紙箱", packType: "標準", packUnit: "1" });
 });

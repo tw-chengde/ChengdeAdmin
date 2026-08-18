@@ -802,7 +802,7 @@ components:
             required:
               - deliveryStatus
               - slipNo
-              - printLable
+              - printLabel
               - printDetail
               - success
             properties:
@@ -823,7 +823,7 @@ components:
               deliveryNote:
                 type: string
                 description: 配送訊息
-              printLable:
+              printLabel:
                 type: string
                 description: 列印標籤（base64 字符）
               printDetail:
@@ -910,12 +910,12 @@ components:
           items:
             type: object
             required:
-              - printLable
+              - printLabel
               - printDetail
               - printAll
               - message
             properties:
-              printLable:
+              printLabel:
                 type: string
                 description: 列印標籤
               printDetail:
@@ -2819,7 +2819,7 @@ paths:
                         - deliveryStatus
                         - slipNo
                         - delyGb
-                        - printLable
+                        - printLabel
                         - printDetail
                         - printAll
                         - success
@@ -2845,7 +2845,7 @@ paths:
                         deliveryNote:
                           type: string
                           description: 配送訊息
-                        printLable:
+                        printLabel:
                           type: string
                           description: 列印標籤下載地址
                         printDetail:
@@ -3039,12 +3039,12 @@ paths:
                     items:
                       type: object
                       required:
-                        - printLable
+                        - printLabel
                         - printDetail
                         - printAll
                         - message
                       properties:
-                        printLable:
+                        printLabel:
                           type: string
                           description: 列印標籤
                         printDetail:

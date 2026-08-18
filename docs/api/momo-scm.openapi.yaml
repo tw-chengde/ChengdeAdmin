@@ -3164,26 +3164,24 @@ components:
           description: '基本檢查有錯時回傳的錯誤訊息陣列'
           items: { type: string }
         resultInfo:
-          type: array
+          type: object
           description: '基本檢查正確時回傳'
-          items:
-            type: object
-            properties:
-              undoCnt: { type: string, description: '未執行筆數' }
-              undoList:
-                type: array
-                description: '未執行列表'
-                items: { type: string }
-              confirmOkCnt: { type: string, description: '出庫成功筆數' }
-              confirmOkList:
-                type: array
-                description: '出庫成功列表'
-                items: { type: string }
-              confirmFailCnt: { type: string, description: '出庫失敗筆數' }
-              confirmFailList:
-                type: array
-                description: '出庫失敗列表'
-                items: { type: string }
+          properties:
+            undoCnt: { type: string, description: '未執行筆數' }
+            undoList:
+              type: array
+              description: '未執行列表'
+              items: { type: string }
+            confirmOkCnt: { type: string, description: '出庫成功筆數' }
+            confirmOkList:
+              type: array
+              description: '出庫成功列表'
+              items: { type: string }
+            confirmFailCnt: { type: string, description: '出庫失敗筆數' }
+            confirmFailList:
+              type: array
+              description: '出庫失敗列表'
+              items: { type: string }
               confirmRepeatCnt: { type: string, description: '重複操作筆數' }
               confirmRepeatList:
                 type: array
@@ -3456,12 +3454,14 @@ components:
         printType: { type: string, description: '列印類別；label:列印標籤 dt:列印明細 all:列印出貨總表' }
         third_delyGb: { type: string, description: '物流商代碼；61:宅配通 62:新竹 63:宅急便' }
         loginInfo: { $ref: '#/components/schemas/LoginInfo' }
-        sendInfo:
-          type: object
+        sendInfoList:
+          type: array
           description: '參數'
-          required: [completeOrderNo]
-          properties:
-            completeOrderNo: { type: string, description: '訂單編號；同宅單號的訂單編號都要一併傳入' }
+          items:
+            type: object
+            required: [completeOrderNo]
+            properties:
+              completeOrderNo: { type: string, description: '訂單編號；同宅單號的訂單編號都要一併傳入' }
     OrderUnsendThirdPrintPdfResponse:
       title: 'unsendThirdPrintPdf：未出貨訂單-第三方物流-列印Pdf－回應'
       x-doAction: unsendThirdPrintPdf

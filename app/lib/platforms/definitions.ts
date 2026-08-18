@@ -1,9 +1,21 @@
 import type {
   OrderStatusOption,
   PlatformDefinition,
+  ShipRouteDefinition,
   ShippingStatusOption,
   StoreDeliveryTypeOption,
 } from "./types";
+import type { ShipmentStep } from "@/app/types/shipment";
+
+/** momo 的超商取貨／第三方物流出貨流程：併箱 → 出貨確認 → 列印標籤。 */
+const MOMO_SHIP_STEPS: readonly ShipmentStep[] = [
+  { id: "combine", label: "併箱" },
+  { id: "confirm", label: "出貨確認" },
+  { id: "print", label: "列印標籤" },
+];
+
+/** 店+ 出貨確認 API 一次回傳物流單號與標籤，沒有獨立的併箱／列印步驟。 */
+const MO_STORE_PLUS_SHIP_STEPS: readonly ShipmentStep[] = [{ id: "confirm", label: "出貨確認" }];
 
 /** 各平台共通的「全部狀態」選項；也是「全部電商通路」分頁唯一的選項。 */
 export const ALL_ORDER_STATUS_OPTION: OrderStatusOption = { value: "ALL", label: "全部狀態" };
@@ -84,6 +96,30 @@ export const momoDefinition: PlatformDefinition = {
     ThirdParty: [ALL_SHIPPING_STATUS_OPTION, ...MOMO_SHIPPING_STATUS_OPTIONS.ThirdParty],
   },
   shippingStatusForOrderStatuses: ["SHIPPING"],
+  // 廠商配送（unsendCompanyConfirm）不納入：目前沒有走廠商配送出貨的品項，
+  // 且平台不產生物流商／單號，無法自動化。
+  shipRoutes: [
+    {
+      id: "MOMO_MAIN:STORE",
+      label: "超商取貨",
+      deliveryType: "Store",
+      storeDeliveryType: null,
+      automatable: true,
+      steps: MOMO_SHIP_STEPS,
+      requiresPackaging: true,
+      producesDocument: true,
+    },
+    {
+      id: "MOMO_MAIN:THIRD_PARTY",
+      label: "第三方物流",
+      deliveryType: "ThirdParty",
+      storeDeliveryType: null,
+      automatable: true,
+      steps: MOMO_SHIP_STEPS,
+      requiresPackaging: true,
+      producesDocument: true,
+    },
+  ] satisfies readonly ShipRouteDefinition[],
 };
 
 export const moStorePlusDefinition: PlatformDefinition = {
@@ -127,6 +163,42 @@ export const moStorePlusDefinition: PlatformDefinition = {
     { value: "StoreToWarehouseReturn", label: "店到倉退貨" },
   ],
   storeDeliveryTypeForDeliveryTypes: ["Store"],
+  // 宅配（OrderShippingStatusConfirmHomeDelivery）不納入：宅配出貨不在本專案範圍內。
+  // 萊爾富／OK 不納入：規格書只提供 7-11／全家的出貨確認端點。
+  shipRoutes: [
+    {
+      id: "MO_STORE_PLUS:STORE:1",
+      label: "7-11 超商",
+      deliveryType: "Store",
+      // OrderQuery 沒有專門的超商品牌欄位，改用 listItem[].deliveryCompany 分辨
+      // （目前只會出現「7-11店到店」／「全家店到店」兩種字面值）。
+      storeDeliveryType: "7-11店到店",
+      automatable: true,
+      steps: MO_STORE_PLUS_SHIP_STEPS,
+      requiresPackaging: false,
+      producesDocument: true,
+    },
+    {
+      id: "MO_STORE_PLUS:STORE:2",
+      label: "全家超商",
+      deliveryType: "Store",
+      storeDeliveryType: "全家店到店",
+      automatable: true,
+      steps: MO_STORE_PLUS_SHIP_STEPS,
+      requiresPackaging: false,
+      producesDocument: true,
+    },
+    {
+      id: "MO_STORE_PLUS:THIRD_PARTY",
+      label: "第三方物流",
+      deliveryType: "ThirdParty",
+      storeDeliveryType: null,
+      automatable: true,
+      steps: MO_STORE_PLUS_SHIP_STEPS,
+      requiresPackaging: false,
+      producesDocument: true,
+    },
+  ] satisfies readonly ShipRouteDefinition[],
 };
 
 /** 所有已知平台的定義。順序即畫面上分頁預設的排列順序。 */

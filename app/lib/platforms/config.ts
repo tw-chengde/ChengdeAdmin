@@ -62,3 +62,22 @@ export function moStorePlusAuthValueFromEnvironment(): string | undefined {
 export function platformProxyFromEnvironment(): PlatformProxyOptions {
   return { proxyUrl: process.env.MOMO_PROXY_URL, proxyToken: process.env.MOMO_PROXY_TOKEN };
 }
+
+export interface ShipmentPackagingConfig {
+  shipPack: string;
+  packType: string;
+  packUnit: string;
+}
+
+/**
+ * 出貨用的預設包材設定（目前僅 momo 需要；店+ 自規格書 v0.11.1 起已無包材欄位）。
+ * 三欄缺一即代表未設定，回傳 null，讓呼叫端在「預覽」階段就擋下
+ * （`PACKAGING_NOT_CONFIGURED`），而不是送出後才被平台退件。
+ */
+export function shipmentPackagingFromEnvironment(prefix: string): ShipmentPackagingConfig | null {
+  const shipPack = optionalEnvironment(`${prefix}_SHIP_PACK`);
+  const packType = optionalEnvironment(`${prefix}_PACK_TYPE`);
+  const packUnit = optionalEnvironment(`${prefix}_PACK_UNIT`);
+  if (!shipPack || !packType || !packUnit) return null;
+  return { shipPack, packType, packUnit };
+}

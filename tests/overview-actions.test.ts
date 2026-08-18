@@ -45,6 +45,7 @@ function connectorWith(
   const connector: PlatformConnector = {
     definition,
     fetchOrders: vi.fn().mockResolvedValue([]),
+    fetchPickingSheetOrders: vi.fn().mockResolvedValue([]),
     fetchProducts: vi.fn().mockResolvedValue([]),
     fetchSalesStatistics,
     fetchPendingShipmentCount,
@@ -122,6 +123,7 @@ test("loadOverviewData 在單一平台查詢失敗時以零值代入", async () 
   const failing: PlatformConnector = {
     definition: momoDefinition,
     fetchOrders: vi.fn().mockResolvedValue([]),
+    fetchPickingSheetOrders: vi.fn().mockResolvedValue([]),
     fetchProducts: vi.fn().mockResolvedValue([]),
     fetchSalesStatistics: vi.fn().mockRejectedValue(new Error("momo SCM 憑證錯誤")),
     fetchPendingShipmentCount: vi.fn().mockRejectedValue(new Error("momo SCM 憑證錯誤")),

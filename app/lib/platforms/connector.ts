@@ -1,4 +1,10 @@
 import type { OrderItem } from "@/app/types/order";
+import type {
+  ShipmentBatchResult,
+  ShipmentCandidate,
+  ShipmentQuery,
+  ShipmentRequest,
+} from "@/app/types/shipment";
 import type { PlatformProduct, PlatformProductQuery } from "./product";
 import type { PlatformSalesQuery, PlatformSalesStatistics } from "./sales";
 import type { PlatformDefinition } from "./types";
@@ -21,6 +27,8 @@ export interface PlatformConnector {
   definition: PlatformDefinition;
   /** 取得該平台的訂單。目前回傳 mock 資料篩選結果；之後串接真實 API 時只需改動這裡的實作。 */
   fetchOrders(query: PlatformOrderQuery): Promise<OrderItem[]>;
+  /** Loads the platform's unprocessed, shippable orders for the cross-platform picking sheet. */
+  fetchPickingSheetOrders(query: PlatformOrderQuery): Promise<OrderItem[]>;
   /** 依查詢條件取得該平台的商品（goodsCode 層級），供併單管理頁綁定本地商品。 */
   fetchProducts(query: PlatformProductQuery): Promise<PlatformProduct[]>;
   /**
@@ -38,4 +46,17 @@ export interface PlatformConnector {
    * 與銷售統計分開則是因為總覽只需要當月的待出貨數，歷史區間不必為此多打 API。
    */
   fetchPendingShipmentCount(query: PlatformSalesQuery): Promise<number>;
+  /**
+   * 取得可一鍵出貨的候選訂單，依 `definition.shipRoutes` 分路徑。
+   *
+   * 與 `fetchOrders` 分開是因為候選訂單多出 `routeId` / `orderSeqs` / `custId` 等
+   * 出貨專用欄位，塞進 `OrderItem` 只會讓訂單查詢頁的消費端多處理用不到的欄位。
+   * 未實作的平台視為「尚不支援一鍵出貨」。
+   */
+  fetchShipmentCandidates?(query: ShipmentQuery): Promise<ShipmentCandidate[]>;
+  /**
+   * 對「一批同路徑訂單」執行完整出貨流程。逐筆回報結果，只有整批被平台拒絕才 throw。
+   * 未實作的平台視為「尚不支援一鍵出貨」。
+   */
+  shipBatch?(request: ShipmentRequest): Promise<ShipmentBatchResult>;
 }

@@ -18,7 +18,7 @@ import { listEnabledPlatformCodes } from "./platforms-actions";
 import { listProducts } from "./products-actions";
 
 /** 讀取所有綁定紀錄，最新建立的排在前面。 */
-async function listBindings(): Promise<ProductBinding[]> {
+export async function listProductBindings(): Promise<ProductBinding[]> {
   const db = getDb();
   const rows = await db
     .select({
@@ -68,7 +68,7 @@ export async function loadMergeBindingPageData(query: PlatformProductQuery): Pro
 
   const [result, bindings, products] = await Promise.all([
     connector ? fetchPlatformProducts(connector, query) : Promise.resolve<PlatformProductsResult>({ platformProducts: [], failures: [] }),
-    listBindings(),
+    listProductBindings(),
     listProducts(),
   ]);
 

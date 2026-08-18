@@ -1,21 +1,41 @@
-import type { OrderItem, OrderStatus } from "@/app/types/order";
+import type { OrderItem, OrderLineItem, OrderStatus } from "@/app/types/order";
 import { normalizeOrderDate, optionalText, toFiniteNumber } from "./mapper-utils";
-import type { MoStorePlusOrderItemRecord, MoStorePlusOrderRecord } from "./mo-store-plus-client";
+import { isMoStorePlusFreightItem, type MoStorePlusOrderItemRecord, type MoStorePlusOrderRecord } from "./mo-store-plus-client";
+
+/**
+ * listItem 品項轉成統一的訂單品項格式。訂單查詢與出貨候選訂單（見 mo-store-plus-shipment-mapper.ts）
+ * 都是把同一份 `listItem` 轉成這個形狀，因此抽成共用函式，兩邊才不會各自維護一份容易分岔的邏輯。
+ */
+export function mapMoStorePlusOrderItems(items: readonly MoStorePlusOrderItemRecord[]): OrderLineItem[] {
+  return items.map((item) => {
+    const qty = toFiniteNumber(item.quantity);
+    // orderAmount 規格上是「訂單金額」＝該品項的小計，不是單價。
+    // 統一模型的 price 是單價，因此在這裡還原，避免小計被數量再乘一次。
+    const amount = toFiniteNumber(item.orderAmount);
+    return {
+      name: item.goodsName ?? "",
+      spec: [item.goodsInfo1, item.goodsInfo2].filter(Boolean).join(" / "),
+      qty,
+      price: qty > 0 ? amount / qty : amount,
+      // 注意：訂單查詢（此處）用 goodsNo；商品查詢（GoodsQueryByMethod）用 goodsCode。
+      goodsCode: optionalText(item.goodsNo) ?? undefined,
+      goodsdtCode: optionalText(item.goodsdtCode) ?? undefined,
+      entpGoodsNo: optionalText(item.entpGoodsNo) ?? undefined,
+    };
+  });
+}
 
 /**
  * mo店+ 的訂單狀態對應到統一的訂單狀態。
  *
- * 訂單查詢的 `orderStatus` 是英文篩選條件，但實際回應的 `itemStatus` 是中文狀態文字。
- * 因此這份表以回應值為主；英文條件值保留為相容的 fallback，避免日後 API 回傳格式改變時
- * 讓既有訂單全數落入「其他」。
- * 平台的狀態比畫面上的分類細，多個平台狀態會收斂到同一個統一狀態：
- * 「未出貨」與「已印單」都還沒交運，因此都算待發貨；「未回收」與「回收確認」屬於退貨流程；
- * 「配送異常」仍在配送途中，只是需要人工處理，故歸為配送中。
+ * OrderQuery 實際回應的 `itemStatus` 為中文狀態文字，因此這份表以回應值為主；
+ * 英文條件值保留為相容的 fallback，避免日後 API 回傳格式改變時讓既有訂單全數落入「其他」。
  */
 const statusByMoStorePlusStatus: Record<string, OrderStatus> = {
   // OrderQuery 實際回傳的 listItem[].itemStatus。
   "訂單接獲(未付款)": "待付款",
   "出貨通知(已付款)": "待發貨",
+  "已印單": "已印單",
   "出貨確認": "配送中",
   "配送結束": "已完成",
   "回收確認": "退貨申請",
@@ -24,7 +44,7 @@ const statusByMoStorePlusStatus: Record<string, OrderStatus> = {
   // OrderQuery 的 orderStatus 篩選值；目前不是實際回傳的 itemStatus。
   Unpaid: "待付款",
   NotShipped: "待發貨",
-  Printed: "待發貨",
+  Printed: "已印單",
   Shipping: "配送中",
   AbnormalDelivery: "配送中",
   DoneDelivery: "已完成",
@@ -55,11 +75,12 @@ export function toMoStorePlusOrderStatus(raw: unknown): OrderStatus {
 const statusRank: Record<OrderStatus, number> = {
   待付款: 0,
   待發貨: 1,
-  配送中: 2,
-  已完成: 3,
-  退貨申請: 4,
-  已取消: 5,
-  其他: 6,
+  已印單: 2,
+  配送中: 3,
+  已完成: 4,
+  退貨申請: 5,
+  已取消: 6,
+  其他: 7,
 };
 
 function orderStatusOf(items: MoStorePlusOrderItemRecord[]): OrderStatus {
@@ -71,20 +92,11 @@ function orderStatusOf(items: MoStorePlusOrderItemRecord[]): OrderStatus {
 
 export function mapMoStorePlusOrders(records: MoStorePlusOrderRecord[]): OrderItem[] {
   return records.map((record, index) => {
-    const items = record.listItem ?? [];
-    const firstItem = items[0];
-    const orderItems = items.map((item) => {
-      const qty = toFiniteNumber(item.quantity);
-      // orderAmount 規格上是「訂單金額」＝該品項的小計，不是單價。
-      // 統一模型的 price 是單價，因此在這裡還原，避免小計被數量再乘一次。
-      const amount = toFiniteNumber(item.orderAmount);
-      return {
-        name: item.goodsName ?? "",
-        spec: [item.goodsInfo1, item.goodsInfo2].filter(Boolean).join(" / "),
-        qty,
-        price: qty > 0 ? amount / qty : amount,
-      };
-    });
+    const allItems = record.listItem ?? [];
+    const items = allItems.filter((item) => !isMoStorePlusFreightItem(item));
+    // 訂單若只剩運費品項（實體商品已被平台移除），仍要能取得收件人／狀態，故 fallback 回未過濾清單。
+    const firstItem = items[0] ?? allItems[0];
+    const orderItems = mapMoStorePlusOrderItems(items);
     const orderNo = String(record.orderNo ?? index);
     return {
       id: `mo-store-plus:${orderNo}`,
@@ -95,7 +107,9 @@ export function mapMoStorePlusOrders(records: MoStorePlusOrderRecord[]): OrderIt
       customerName: String(firstItem?.customerName ?? firstItem?.receiverName ?? ""),
       address: String(firstItem?.receiverAddress ?? ""),
       items: orderItems,
-      totalAmount: items.reduce((sum, item) => sum + toFiniteNumber(item.orderAmount), 0),
+      // 訂單總額含運費：items 排除運費品項只是為了不讓它出現在揀貨/品項清單裡，
+      // totalAmount 仍要用未過濾的 allItems，否則會少算運費。
+      totalAmount: allItems.reduce((sum, item) => sum + toFiniteNumber(item.orderAmount), 0),
       status: orderStatusOf(items),
       logistics: String(firstItem?.deliveryCompany ?? firstItem?.deliveryType ?? ""),
       trackingNo: String(firstItem?.deliveryNo ?? ""),

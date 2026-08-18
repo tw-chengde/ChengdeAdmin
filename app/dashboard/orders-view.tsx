@@ -227,9 +227,6 @@ export default function OrdersView() {
             <Typography sx={{ fontSize: 26, fontWeight: 850, color: stats.pendingShipment > 0 ? "#b54708" : "#101828" }}>
               {stats.pendingShipment} 筆
             </Typography>
-            {stats.pendingShipment > 0 && (
-              <Chip label="需今日發貨" size="small" sx={{ bgcolor: "#fffaeb", color: "#b54708", fontWeight: 750, fontSize: 11 }} />
-            )}
           </Stack>
         </Paper>
       </Box>

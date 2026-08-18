@@ -1,10 +1,20 @@
+import type {
+  ShipmentBatchResult,
+  ShipmentCandidate,
+  ShipmentDocument,
+  ShipmentOrderResult,
+  ShipmentQuery,
+  ShipmentRequest,
+} from "@/app/types/shipment";
 import { allowedValuesFromEnvironment } from "./config";
 import type { PlatformConnector, PlatformOrderQuery } from "./connector";
 import { MOMO_SHIPPING_STATUS_OPTIONS, MOMO_STORE_DELIVERY_TYPE_OPTIONS, momoDefinition } from "./definitions";
 import { mapMomoSalesStatistics, mapMomoShippingOrders, mapMomoUnshippedOrders } from "./momo-order-mapper";
 import { mapMomoGoodsBasicData } from "./momo-product-mapper";
-import { MomoScmClient } from "./momo-scm-client";
+import { mapMomoShipmentCandidates } from "./momo-shipment-mapper";
+import { MomoScmClient, type MomoPackaging, type MomoThirdPartyOrderQuery } from "./momo-scm-client";
 import type { ListingStatusFilter } from "./product";
+import { classifyPrintPayload, dedupeByOrderNo, planComboBoxes, resolveMomoOrderStates } from "@/app/utils/shipment";
 
 /** 商品狀態查詢條件對應 momo 的 saleGb：留空＝全部、00＝進行、11＝暫時中斷。 */
 const saleGbByListingStatus: Record<ListingStatusFilter, string> = {
@@ -118,6 +128,9 @@ export function createMomoConnector(options: MomoConnectorOptions = {}): Platfor
       ]);
       return [...unshippedOrders, ...shippingOrders];
     },
+    async fetchPickingSheetOrders(query) {
+      return fetchUnshipped(createClient(), query);
+    },
     async fetchProducts(query) {
       const saleGb = saleGbByListingStatus[query.listingStatus];
       return mapMomoGoodsBasicData(await createClient().queryGoodsBasicData({ saleGb }));
@@ -130,6 +143,147 @@ export function createMomoConnector(options: MomoConnectorOptions = {}): Platfor
     async fetchPendingShipmentCount(query) {
       // 未指定配送類型與超商別時，fetchUnshipped 會查完全部已串接的組合。
       return (await fetchUnshipped(createClient(), query)).length;
+    },
+    async fetchShipmentCandidates(query: ShipmentQuery): Promise<ShipmentCandidate[]> {
+      const client = createClient();
+      const { deliveryTypes, temperatureTypes } = thirdPartyScope();
+
+      const [storeGroups, thirdPartyGroups] = await Promise.all([
+        Promise.all(storeDeliveryTypes.map((delyGb) => client.queryUnshippedStoreOrders({ ...query, delyGb }))),
+        Promise.all(
+          deliveryTypes.flatMap((delyGb) => temperatureTypes.map((delyTemp) => client.queryUnshippedThirdPartyOrders({ ...query, delyGb, delyTemp }))),
+        ),
+      ]);
+
+      const storeCandidates = mapMomoShipmentCandidates(storeGroups.flat(), "MOMO_MAIN:STORE");
+      // 每個 (delyGb, delyTemp) 組合各自映射，才能把 delyGb 標記回候選訂單（列印時要依物流商分組）。
+      const delyGbPerGroup = deliveryTypes.flatMap((delyGb) => temperatureTypes.map(() => delyGb));
+      const thirdPartyCandidates = dedupeByOrderNo(
+        thirdPartyGroups.flatMap((rows, index) => mapMomoShipmentCandidates(rows, "MOMO_MAIN:THIRD_PARTY", delyGbPerGroup[index])),
+      );
+
+      return [...storeCandidates, ...thirdPartyCandidates];
+    },
+    async shipBatch(request: ShipmentRequest): Promise<ShipmentBatchResult> {
+      const isStore = request.routeId === "MOMO_MAIN:STORE";
+      const client = createClient();
+      const results: ShipmentOrderResult[] = [];
+      const documents: ShipmentDocument[] = [];
+
+      const boxYnByOrderNo = planComboBoxes(request.candidates, isStore ? "STORE" : "THIRD_PARTY", request.bindings, request.products);
+      const combineResult = isStore
+        ? await client.combineStoreBoxes(boxYnByOrderNo)
+        : await client.combineThirdPartyBoxes(boxYnByOrderNo);
+
+      const parseOrderNoList = (entries: string[] | undefined) =>
+        (entries ?? []).map((entry) => entry.split(":")[0]?.trim()).filter((orderNo): orderNo is string => Boolean(orderNo));
+
+      // 併箱失敗、或箱號重複（combineUsedList，代表指派的箱號已被用過）的訂單都不進入後續階段（列印／出貨確認）。
+      const combineFailedOrderNos = new Set(parseOrderNoList(combineResult.combineFailList));
+      for (const orderNo of combineFailedOrderNos) {
+        results.push({ orderNo, state: "FAILED", message: "併箱失敗，未送出出貨確認" });
+      }
+      const combineUsedOrderNos = new Set(parseOrderNoList(combineResult.combineUsedList).filter((orderNo) => !combineFailedOrderNos.has(orderNo)));
+      for (const orderNo of combineUsedOrderNos) {
+        results.push({ orderNo, state: "FAILED", message: "併箱箱號重複，未送出出貨確認" });
+      }
+
+      const proceeding = request.candidates.filter(
+        (candidate) => !combineFailedOrderNos.has(candidate.orderNo) && !combineUsedOrderNos.has(candidate.orderNo),
+      );
+      if (proceeding.length === 0) return { routeId: request.routeId, results, documents };
+      const proceedingOrderNos = proceeding.map((candidate) => candidate.orderNo);
+
+      const packaging: MomoPackaging = {
+        shipTypeStr: request.packaging?.shipPack ?? "",
+        packTypeStr: request.packaging?.packType ?? "",
+        packUnit: request.packaging?.packUnit ?? "",
+      };
+      const finishResults = isStore
+        ? await client.finishStoreShipment(proceedingOrderNos, packaging)
+        : await client.finishThirdPartyShipment(proceedingOrderNos, packaging);
+      const states = resolveMomoOrderStates(proceedingOrderNos, finishResults);
+      const printableOrderNos = proceedingOrderNos.filter((orderNo) => {
+        const state = states.get(orderNo)?.state;
+        return state === "SUCCESS" || state === "ALREADY_DONE";
+      });
+      const printWarningByOrderNo = new Map<string, string>();
+      const recordPrintFailure = (orderNos: string[], documentName: string, error: unknown) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        for (const orderNo of orderNos) printWarningByOrderNo.set(orderNo, `出貨成功，但${documentName}列印失敗：${detail}`);
+      };
+
+      if (isStore) {
+        if (printableOrderNos.length > 0) {
+          for (const { printType, name, documentName } of [
+            { printType: "label" as const, name: "momo 超商取貨標籤", documentName: "標籤" },
+            { printType: "dt" as const, name: "momo 超商取貨明細", documentName: "明細" },
+          ]) {
+            try {
+              const printResult = await client.printStoreLabels(printableOrderNos, printType);
+              if (printResult.pdfData) {
+                const kind = classifyPrintPayload(printResult.pdfData);
+                if (kind) {
+                  documents.push({
+                    platformCode: "MOMO_MAIN",
+                    routeId: request.routeId,
+                    name,
+                    kind,
+                    content: printResult.pdfData,
+                    orderNos: printableOrderNos,
+                  });
+                }
+              }
+            } catch (error) {
+              recordPrintFailure(printableOrderNos, documentName, error);
+            }
+          }
+        }
+      } else {
+        // 第三方物流列印需指定物流商；同一物流商的訂單可透過 sendInfoList 一次列印。
+        const orderNosByDelyGb = new Map<string, string[]>();
+        for (const candidate of proceeding) {
+          if (!printableOrderNos.includes(candidate.orderNo) || !candidate.thirdPartyDelyGb) continue;
+          const orderNos = orderNosByDelyGb.get(candidate.thirdPartyDelyGb);
+          if (orderNos) orderNos.push(candidate.orderNo);
+          else orderNosByDelyGb.set(candidate.thirdPartyDelyGb, [candidate.orderNo]);
+        }
+
+        for (const [delyGb, orderNos] of orderNosByDelyGb) {
+          for (const { printType, label } of [
+            { printType: "label" as const, label: "標籤" },
+            { printType: "dt" as const, label: "明細" },
+            { printType: "all" as const, label: "出貨總表" },
+          ]) {
+            try {
+              const printResult = await client.printThirdPartyLabels(delyGb as MomoThirdPartyOrderQuery["delyGb"], orderNos, printType);
+              if (printResult.pdfData) {
+                const kind = classifyPrintPayload(printResult.pdfData);
+                if (kind) {
+                  documents.push({
+                    platformCode: "MOMO_MAIN",
+                    routeId: request.routeId,
+                    name: `momo 第三方物流${label}`,
+                    kind,
+                    content: printResult.pdfData,
+                    orderNos,
+                  });
+                }
+              }
+            } catch (error) {
+              recordPrintFailure(orderNos, label, error);
+            }
+          }
+        }
+      }
+
+      for (const orderNo of proceedingOrderNos) {
+        const resolved = states.get(orderNo)!;
+        const message = [resolved.message, printWarningByOrderNo.get(orderNo)].filter(Boolean).join("；") || undefined;
+        results.push({ orderNo, state: resolved.state, message });
+      }
+
+      return { routeId: request.routeId, results, documents };
     },
   };
 }

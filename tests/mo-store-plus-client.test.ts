@@ -205,10 +205,11 @@ test("mo店+ 待出貨單數只算正規化後為待發貨的訂單", async () =
   const { connector } = connectorReturning([
     orderRecord("MS-1", "2026/08/01", "出貨通知(已付款)", 100),
     orderRecord("MS-2", "2026/08/01", "出貨通知(已付款)", 100),
+    orderRecord("MS-PRINTED", "2026/08/01", "已印單", 100),
     orderRecord("MS-3", "2026/08/02", "配送結束", 100),
   ]);
 
-  assert.equal(await connector.fetchPendingShipmentCount(salesRange), 2);
+  assert.equal(await connector.fetchPendingShipmentCount(salesRange), 3);
 });
 
 test("mo店+ 商品查詢逐頁抓到 totalGoods 為止，並彙總單品的庫存與售價", async () => {
@@ -342,3 +343,110 @@ test("mo店+ 設定 proxy 後，訂單與商品查詢都改送 proxy 並帶上�
 
 // 「設了 proxyUrl 卻沒給 token 就擋下」是共用的 resolvePlatformRequest 行為，
 // 已由 platform-transport.test.ts 直接驗證，各 client 不再各測一次。
+
+const shippedPackage = { deliveryStatus: "Shipped" as const, orderList: [{ orderNo: "MO-1", orderSeq: "001" }] };
+
+test("mo店+ 7-11 出貨確認打對的端點，delyGb 轉成數字並補上空白 deliveryNote", async () => {
+  let requestUrl: string | undefined;
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MoStorePlusClient({
+    fetchImpl: async (input, init) => {
+      requestUrl = String(input);
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ confirmDeliveryDetailResList: [{ slipNo: "S1", success: true }] }));
+    },
+  });
+
+  const result = await client.confirmSevenStoreDelivery("21", [shippedPackage]);
+
+  assert.equal(requestUrl, "https://api3p.momo.com.tw/VendorApi/OrderShippingStatusConfirmSevenStoreDelivery");
+  assert.equal(requestBody?.delyGb, 21);
+  assert.deepEqual(requestBody?.listItem, [{ ...shippedPackage, deliveryNote: "" }]);
+  assert.deepEqual(result, [{ slipNo: "S1", success: true }]);
+});
+
+test("mo店+ 全家出貨確認打對的端點", async () => {
+  let requestUrl: string | undefined;
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MoStorePlusClient({
+    fetchImpl: async (input, init) => {
+      requestUrl = String(input);
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ confirmDeliveryDetailResList: [] }));
+    },
+  });
+
+  await client.confirmFamilyStoreDelivery("29", [shippedPackage]);
+
+  assert.equal(requestUrl, "https://api3p.momo.com.tw/VendorApi/OrderShippingStatusConfirmFamilyStoreDelivery");
+  assert.equal(requestBody?.delyGb, 29);
+});
+
+test("mo店+ 第三方物流出貨確認不需要 delyGb，回應直接附 slipNo", async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MoStorePlusClient({
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ confirmDeliveryDetailResList: [{ slipNo: "T1", delyGb: "新竹貨運", success: true }] }),
+      );
+    },
+  });
+
+  const result = await client.confirmThirdPartyDelivery([shippedPackage]);
+
+  assert.equal(requestBody?.delyGb, undefined);
+  assert.deepEqual(requestBody?.listItem, [{ ...shippedPackage, deliveryNote: "" }]);
+  assert.equal(result[0]?.slipNo, "T1");
+});
+
+test("mo店+ 超商/第三方出貨確認遇到 errorMessage 時整批失敗並指出動作名稱", async () => {
+  const client = new MoStorePlusClient({
+    fetchImpl: async () => new Response(JSON.stringify({ errorMessage: "token 已過期" })),
+  });
+
+  await assert.rejects(client.confirmSevenStoreDelivery("21", []), /mo店\+ 7-11 超商出貨確認失敗：token 已過期/);
+  await assert.rejects(client.confirmFamilyStoreDelivery("29", []), /mo店\+ 全家超商出貨確認失敗：token 已過期/);
+  await assert.rejects(client.confirmThirdPartyDelivery([]), /mo店\+ 第三方物流出貨確認失敗：token 已過期/);
+});
+
+test("mo店+ 7-11／全家重印標籤打對的端點並保留 printLabel/printDetail", async () => {
+  let requestUrl: string | undefined;
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MoStorePlusClient({
+    fetchImpl: async (input, init) => {
+      requestUrl = String(input);
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ orderPrintLabelResList: [{ printLabel: "L", printDetail: "D", message: "" }] }),
+      );
+    },
+  });
+
+  const orderList = [{ orderNo: "MO-1", orderSeq: "001" }];
+  const result = await client.printSevenStoreLabels([{ delyGb: "21", orderList }]);
+
+  assert.equal(requestUrl, "https://api3p.momo.com.tw/VendorApi/OrderShippingSevenStorePrintLabel");
+  assert.deepEqual(requestBody?.listItem, [{ delyGb: "21", orderList }]);
+  assert.deepEqual(result, [{ printLabel: "L", printDetail: "D", message: "" }]);
+
+  await client.printFamilyStoreLabels([{ delyGb: "29", orderList }]);
+  assert.equal(requestUrl, "https://api3p.momo.com.tw/VendorApi/OrderShippingFamilyStorePrintLabel");
+});
+
+test("mo店+ 第三方物流重印標籤把每個宅單分組包成 listItem[].orderList", async () => {
+  let requestBody: Record<string, unknown> | undefined;
+  const client = new MoStorePlusClient({
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ orderPrintLabelResList: [] }));
+    },
+  });
+
+  const groupA = [{ orderNo: "MO-1", orderSeq: "001" }];
+  const groupB = [{ orderNo: "MO-2", orderSeq: "001" }, { orderNo: "MO-2", orderSeq: "002" }];
+
+  await client.printThirdPartyLabels([groupA, groupB]);
+
+  assert.deepEqual(requestBody?.listItem, [{ orderList: groupA }, { orderList: groupB }]);
+});

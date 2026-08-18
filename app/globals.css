@@ -52,3 +52,183 @@ a {
 ::selection {
   background: rgba(235, 113, 74, 0.18);
 }
+
+/*
+ * 揀貨單專用列印版面（.print-only，見 picking-sheet-print-view.tsx）：畫面上不顯示，
+ * 只在列印時出現，欄位與樣式跟畫面上的檢視表格分開維護，不是直接把畫面截下來印。
+ */
+.print-only {
+  display: none;
+}
+
+/*
+ * 揀貨單列印：只留 .print-area 可見，側欄、頁首、對話框背景與按鈕（.no-print）一律隱藏。
+ * thead 每頁重複表頭、tr 避免被分頁從中截斷。
+ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 6mm;
+  }
+
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .MuiDialog-root,
+  .MuiDialog-container {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .MuiDialog-paper {
+    width: 100% !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  .MuiDialogContent-root {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: static !important;
+    inset: auto;
+    width: 100%;
+    overflow: visible !important;
+    border: 0 !important;
+  }
+
+  .print-area table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-area thead {
+    display: table-header-group;
+  }
+
+  .print-area tr {
+    page-break-inside: avoid;
+  }
+}
+
+/*
+ * 揀貨單列印版面樣式：直立緊湊排版，最小化邊界與間距，以容納最多訂單品項。
+ * 平台商品欄位隨列合併（rowSpan）沿用列印表格的 col-product 欄。
+ */
+.picking-print-sheet {
+  font-family: var(--font-body);
+  color: #111;
+}
+
+.picking-print-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 3mm;
+  border-bottom: 1.5px solid #111;
+  padding-bottom: 1.5mm;
+}
+
+.picking-print-header h1 {
+  margin: 0;
+  font-size: 13pt;
+  font-weight: 800;
+}
+
+.picking-print-meta {
+  display: flex;
+  gap: 8mm;
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+
+.picking-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+  line-height: 1.25;
+}
+
+.picking-print-table th,
+.picking-print-table td {
+  border: 1px solid #333;
+  padding: 1.2mm 1.5mm;
+  text-align: left;
+  vertical-align: top;
+}
+
+.picking-print-table thead th {
+  background: #eee;
+  font-weight: 700;
+  text-align: center;
+  padding: 1.2mm 1.5mm;
+}
+
+.picking-print-table .col-check {
+  width: 10mm;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.picking-print-table .col-product {
+  width: 25%;
+}
+
+.picking-print-table .col-qty {
+  width: 10mm;
+  text-align: center;
+  font-weight: 700;
+}
+
+.picking-print-table .col-orders {
+  width: 24%;
+  font-size: 7.5pt;
+  line-height: 1.15;
+  word-break: break-all;
+}
+
+.picking-print-table .col-empty {
+  text-align: center;
+  padding: 6mm 0;
+}
+
+.picking-print-table .mono {
+  font-family: monospace;
+  font-size: 7.5pt;
+  word-break: break-all;
+}
+
+.picking-print-checkbox {
+  display: inline-block;
+  width: 3.2mm;
+  height: 3.2mm;
+  border: 1pt solid #111;
+}
+
+.picking-print-product-name {
+  font-weight: 700;
+}
