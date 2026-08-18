@@ -44,13 +44,13 @@ flowchart TD
 
     User <-->|HTTPS| Worker
     Worker <--> D1
-    Worker -->|直連 API| MO_STORE
-    Worker -->|固定 IP 代理 (Proxy Token)| Proxy
+    Worker -->|"固定 IP 代理 (Proxy Token)"| Proxy
     Proxy -->|MOMO SCM API| MOMO
+    Proxy -->|"MO 店+ API"| MO_STORE
 ```
 
 > **💡 為什麼需要 `momo-proxy`？**  
-> MOMO SCM API 要求呼叫端必須具備預先註冊的白名單固定 IP，而 Cloudflare Workers 為分散式 Edge 出口，因此透過獨立部署於 Google Cloud Function 的 Proxy（固定出口 IP）轉發 API 請求。
+> MOMO 系列平台（MOMO 主站 SCM、MO 店+）API 均要求呼叫端具備預先註冊的白名單固定 IP。由於 Cloudflare Workers 為分散式 Edge 架構無固定出口 IP，因此系統將外部平台請求統一透過獨立部署於 Google Cloud Functions 的 Proxy（固定出口 IP）進行轉發。
 
 ---
 
@@ -183,7 +183,7 @@ wrangler.json                    Cloudflare Worker 部署、綁定與環境設�
 | 變數名稱 | 必要性 | 說明 |
 | :--- | :--- | :--- |
 | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | 必要 | Better Auth 與 Google OAuth 登入設定 |
-| `MOMO_PROXY_URL`, `MOMO_PROXY_TOKEN` | 使用固定出口代理時 | 用於將 MOMO 請求導向至 GCP Proxy（需一併設定） |
+| `MOMO_PROXY_URL`, `MOMO_PROXY_TOKEN` | 使用固定出口代理時 | 用於將各通路（MOMO 購物網、MO 店+）請求導向至 GCP Proxy（需一併設定） |
 | `MOMO_SCM_ENTP_ID`, `MOMO_SCM_ENTP_CODE`, `MOMO_SCM_ENTP_PASSWORD`, `MOMO_SCM_OTP_BACK_NO` | 使用 `MOMO_MAIN` 時 | MOMO SCM 廠商後台 API 認證資訊 |
 | `MOMO_SCM_THIRD_PARTY_DELIVERY_TYPES`, `MOMO_SCM_THIRD_PARTY_TEMPERATURE_TYPES` | 選填 | 覆寫 MOMO SCM 配送/溫層預設設定 |
 | `MO_STORE_PLUS_AUTH_VALUE` | 使用 `MO_STORE_PLUS` 時 | MO 店+ 授權標頭（通常為 `Bearer <JWT>`） |
