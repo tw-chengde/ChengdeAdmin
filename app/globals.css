@@ -74,25 +74,44 @@ a {
   html,
   body {
     height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
+    background: #fff !important;
+  }
+
+  /* 隱藏背景 DOM 樹以消除排版佔位，避免產生空白頁 */
+  body > *:not(.MuiDialog-root):not(.print-area) {
+    display: none !important;
   }
 
   body * {
     visibility: hidden;
   }
 
+  .MuiBackdrop-root {
+    display: none !important;
+  }
+
   .MuiDialog-root,
   .MuiDialog-container {
+    position: static !important;
     height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   .MuiDialog-paper {
+    position: static !important;
     width: 100% !important;
+    max-width: 100% !important;
     max-height: none !important;
     margin: 0 !important;
+    padding: 0 !important;
     overflow: visible !important;
     box-shadow: none !important;
+    border: 0 !important;
   }
 
   .MuiDialogContent-root {
@@ -132,6 +151,7 @@ a {
 
   .print-area tr {
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 }
 
